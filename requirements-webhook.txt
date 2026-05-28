@@ -1,0 +1,3 @@
+# Webhook Lambda 用：不需要 playwright / pandas
+boto3>=1.34.0
+requests>=2.31.0
