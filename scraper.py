@@ -71,7 +71,7 @@ def main():
     parser.add_argument("--email", action="store_true")
     parser.add_argument("--smtp-user", type=str, default=None)
     parser.add_argument("--smtp-password", type=str, default=None)
-    parser.add_argument("--recipient", type=str, default="archong.futurenest@gmail.com")
+    parser.add_argument("--recipient", type=str, default=None, help="收件 email（--email 模式必填）")
     args = parser.parse_args()
 
     max_pages = 9999 if args.all else args.max_pages
@@ -85,6 +85,9 @@ def main():
         smtp_password = args.smtp_password or os.environ.get("SMTP_PASSWORD")
         if not smtp_user or not smtp_password:
             print("寄信失敗：請提供 --smtp-user 和 --smtp-password（或 SMTP_USER / SMTP_PASSWORD）")
+            return
+        if not args.recipient:
+            print("寄信失敗：請用 --recipient 指定收件人")
             return
         send_email(csv_path, args.recipient, smtp_user, smtp_password, len(listings))
 
