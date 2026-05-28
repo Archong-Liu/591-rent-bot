@@ -40,3 +40,11 @@ resource "aws_cloudwatch_log_group" "webhook" {
   retention_in_days = 14
   tags              = local.tags
 }
+
+resource "aws_lambda_permission" "webhook_public" {
+  statement_id           = "AllowPublicFunctionURL"
+  action                 = "lambda:InvokeFunctionUrl"
+  function_name          = aws_lambda_function.webhook.function_name
+  principal              = "*"
+  function_url_auth_type = "NONE"
+}
