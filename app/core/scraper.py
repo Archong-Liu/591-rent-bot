@@ -98,7 +98,16 @@ def scrape(
     listings: list[dict] = []
 
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(headless=headless)
+        browser = pw.chromium.launch(
+            headless=headless,
+            args=[
+                "--single-process",
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--disable-setuid-sandbox",
+            ],
+        )
         context = browser.new_context(user_agent=USER_AGENT, locale="zh-TW")
         page = context.new_page()
 

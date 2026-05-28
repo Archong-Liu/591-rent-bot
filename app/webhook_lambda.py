@@ -208,6 +208,9 @@ def handler(event, context):  # noqa: ARG001
     text = (message.get("text") or "").strip()
     chat_id = message["chat"]["id"]
 
+    # 將快捷按鈕文字（例如「📋 看條件」）轉成對應的 slash command
+    text = telegram.BUTTON_TO_COMMAND.get(text, text)
+
     # 取出指令（去掉 @botname suffix）
     parts = text.split()
     if not parts or not parts[0].startswith("/"):
@@ -227,7 +230,13 @@ def handler(event, context):  # noqa: ARG001
 
     try:
         token = get_telegram_token()
-        telegram.send_message(token, chat_id, reply, parse_mode=None)
+        telegram.send_message(
+            token,
+            chat_id,
+            reply,
+            parse_mode=None,
+            reply_markup=telegram.QUICK_KEYBOARD,
+        )
     except Exception as e:  # noqa: BLE001
         logger.exception("回覆 Telegram 失敗：%s", e)
 

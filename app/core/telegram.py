@@ -19,6 +19,7 @@ def send_message(
     text: str,
     parse_mode: str | None = "Markdown",
     disable_web_page_preview: bool = False,
+    reply_markup: dict | None = None,
 ) -> dict:
     payload = {
         "chat_id": chat_id,
@@ -27,9 +28,33 @@ def send_message(
     }
     if parse_mode:
         payload["parse_mode"] = parse_mode
+    if reply_markup is not None:
+        payload["reply_markup"] = reply_markup
     resp = requests.post(_bot_url(token, "sendMessage"), json=payload, timeout=10)
     resp.raise_for_status()
     return resp.json()
+
+
+# --- Reply keyboard 常用功能按鈕 ---
+
+QUICK_KEYBOARD = {
+    "keyboard": [
+        ["📋 看條件", "🚀 立刻掃"],
+        ["⏸ 暫停", "▶️ 恢復"],
+        ["🗑 清除條件"],
+    ],
+    "resize_keyboard": True,
+    "is_persistent": True,
+}
+
+# 按鈕文字 → 對應的 slash command
+BUTTON_TO_COMMAND = {
+    "📋 看條件": "/filters",
+    "🚀 立刻掃": "/run",
+    "⏸ 暫停": "/pause",
+    "▶️ 恢復": "/resume",
+    "🗑 清除條件": "/clear",
+}
 
 
 def set_webhook(token: str, url: str) -> dict:

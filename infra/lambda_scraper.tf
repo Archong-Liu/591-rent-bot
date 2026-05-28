@@ -6,7 +6,11 @@ resource "aws_lambda_function" "scraper" {
   architectures = ["x86_64"]
 
   timeout     = 300 # 5 分鐘
-  memory_size = 1024
+  memory_size = 2048
+
+  ephemeral_storage {
+    size = 2048 # /tmp 大小，Chromium 需要
+  }
 
   environment {
     variables = {
