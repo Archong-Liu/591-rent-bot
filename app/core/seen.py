@@ -40,3 +40,20 @@ def mark_seen(listing_id: str, ttl_days: int = DEFAULT_TTL_DAYS) -> bool:
         if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
             return False
         raise
+
+
+def clear_seen() -> int:
+    """清空整張 rent_seen 表，回傳刪除筆數。供 /reset 使用。"""
+    table = _get_table()
+    deleted = 0
+    scan_kwargs = {"ProjectionExpression": "listing_id"}
+    while True:
+        resp = table.scan(**scan_kwargs)
+        with table.batch_writer() as batch:
+            for item in resp.get("Items", []):
+                batch.delete_item(Key={"listing_id": item["listing_id"]})
+                deleted += 1
+        if "LastEvaluatedKey" not in resp:
+            break
+        scan_kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
+    return deleted

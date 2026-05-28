@@ -63,6 +63,28 @@ def set_webhook(token: str, url: str) -> dict:
     return resp.json()
 
 
+def format_digest(items: list[dict]) -> str:
+    """把多筆 listing 合成一則精簡 Markdown 訊息（每筆一行）。"""
+
+    def esc(s: str) -> str:
+        for ch in ("_", "*", "[", "]"):
+            s = s.replace(ch, f"\\{ch}")
+        return s
+
+    lines = [f"🆕 *{len(items)} 筆新物件*", ""]
+    for i, item in enumerate(items, 1):
+        district = esc(item.get("district", "").split("-")[0] or "?")
+        house_type = esc(item.get("type", ""))
+        price = item.get("price", "?")
+        area = esc(item.get("area", ""))
+        title = esc((item.get("title") or "(無標題)")[:25])
+        link = item.get("link", "")
+        lines.append(
+            f"{i}. {district}｜{house_type}｜{price}元｜{area}\n   {title}\n   {link}"
+        )
+    return "\n".join(lines)
+
+
 def format_listing(item: dict) -> str:
     """把 scraper 回來的物件格式化成 Telegram Markdown 訊息。"""
 

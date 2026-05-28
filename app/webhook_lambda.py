@@ -22,6 +22,7 @@ from app.core.filters import (
     normalize_kind,
 )
 from app.core.prefs import clear_filters, get_prefs, update_prefs
+from app.core.seen import clear_seen
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -59,7 +60,8 @@ def cmd_start(args: list[str], chat_id: int) -> str:
         "/set_pattern <n>... - 設房數\n"
         "/clear - 清除所有篩選\n"
         "/pause | /resume - 暫停/恢復通知\n"
-        "/run - 立即觸發一次掃描\n\n"
+        "/run - 立即觸發一次掃描\n"
+        "/reset - 清空 dedup 重新建立基準\n\n"
         f"{describe_prefs(prefs)}"
     )
 
@@ -170,6 +172,15 @@ def cmd_run(args: list[str], chat_id: int) -> str:
     return "🚀 已觸發掃描，新物件會陸續推送到這裡。"
 
 
+def cmd_reset(args: list[str], chat_id: int) -> str:
+    update_prefs({"chat_id": chat_id, "last_scan_at": None})
+    n = clear_seen()
+    return (
+        f"♻️ 已清除 {n} 筆 dedup 紀錄，下次掃描會重新建立基準資料。\n"
+        "（不會推送 listings，只送一則「已建立基準資料」）"
+    )
+
+
 COMMANDS: dict[str, Callable[[list[str], int], str]] = {
     "/start": cmd_start,
     "/help": cmd_start,
@@ -183,6 +194,7 @@ COMMANDS: dict[str, Callable[[list[str], int], str]] = {
     "/pause": cmd_pause,
     "/resume": cmd_resume,
     "/run": cmd_run,
+    "/reset": cmd_reset,
 }
 
 

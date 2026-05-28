@@ -86,6 +86,15 @@ resource "aws_iam_role_policy" "webhook_inline" {
         Resource = aws_dynamodb_table.prefs.arn
       },
       {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:Scan",
+          "dynamodb:DeleteItem",
+          "dynamodb:BatchWriteItem",
+        ]
+        Resource = aws_dynamodb_table.seen.arn
+      },
+      {
         Effect   = "Allow"
         Action   = ["ssm:GetParameter"]
         Resource = aws_ssm_parameter.telegram_token.arn
