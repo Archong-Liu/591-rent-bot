@@ -30,21 +30,12 @@ resource "aws_lambda_function" "webhook" {
   tags = local.tags
 }
 
-resource "aws_lambda_function_url" "webhook" {
-  function_name      = aws_lambda_function.webhook.function_name
-  authorization_type = "NONE"
-}
-
 resource "aws_cloudwatch_log_group" "webhook" {
   name              = "/aws/lambda/${aws_lambda_function.webhook.function_name}"
   retention_in_days = 14
   tags              = local.tags
 }
 
-resource "aws_lambda_permission" "webhook_public" {
-  statement_id           = "AllowPublicFunctionURL"
-  action                 = "lambda:InvokeFunctionUrl"
-  function_name          = aws_lambda_function.webhook.function_name
-  principal              = "*"
-  function_url_auth_type = "NONE"
-}
+# 對外 HTTPS 入口改用 API Gateway HTTP API（個人 AWS 帳號的 Function URL
+# 因組織層級政策一直回 403，pivot 至 API Gateway 走另一條 IAM 路徑）。
+# API 資源定義於 infra/apigateway.tf。

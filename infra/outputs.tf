@@ -9,8 +9,9 @@ output "scraper_function_name" {
 }
 
 output "webhook_url" {
-  description = "Telegram setWebhook 用的 URL"
-  value       = aws_lambda_function_url.webhook.function_url
+  description = "Telegram setWebhook 用的 URL（API Gateway HTTP API）"
+  # invoke_url 的 trailing slash 不固定，用 trimsuffix 確保只有一條
+  value = "${trimsuffix(aws_apigatewayv2_stage.webhook.invoke_url, "/")}/webhook"
 }
 
 output "ssm_telegram_token_name" {
