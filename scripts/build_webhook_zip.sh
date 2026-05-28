@@ -13,7 +13,7 @@ cp -R "$ROOT_DIR/app/." "$BUILD_DIR/app/"
 
 # 裝依賴到 build 根目錄（與 app 同層，import 時找得到）
 # 用 manylinux2014_x86_64 wheels，避免 macOS 開發機上的 platform mismatch
-pip install \
+python3 -m pip install \
   --quiet \
   --platform manylinux2014_x86_64 \
   --target "$BUILD_DIR" \
