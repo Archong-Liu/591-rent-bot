@@ -22,6 +22,7 @@ resource "aws_lambda_function" "webhook" {
   environment {
     variables = {
       PREFS_TABLE        = aws_dynamodb_table.prefs.name
+      SEEN_TABLE         = aws_dynamodb_table.seen.name
       SSM_TELEGRAM_TOKEN = aws_ssm_parameter.telegram_token.name
       SCRAPER_FN_NAME    = aws_lambda_function.scraper.function_name
     }
