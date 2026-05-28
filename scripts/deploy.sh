@@ -25,7 +25,7 @@ aws ecr get-login-password --region "$AWS_REGION" | \
   docker login --username AWS --password-stdin "$ECR_HOST"
 
 cd "$ROOT_DIR"
-docker build --platform linux/amd64 -t "$ECR_HOST/rent-scraper:$IMAGE_TAG" .
+docker build --platform linux/amd64 --provenance=false -t "$ECR_HOST/rent-scraper:$IMAGE_TAG" .
 docker push "$ECR_HOST/rent-scraper:$IMAGE_TAG"
 
 echo "==> 4/5 build webhook Lambda zip"
