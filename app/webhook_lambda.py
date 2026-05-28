@@ -50,13 +50,13 @@ def cmd_start(args: list[str], chat_id: int) -> str:
     return (
         "👋 哈囉！我是台北 591 租屋通知 bot。\n"
         "每 4 小時自動掃描符合你篩選的新物件，並推到這裡。\n\n"
-        "*可用指令*:\n"
+        "可用指令:\n"
         "/filters - 看目前條件\n"
-        "/set_price `<min> <max>` - 設租金區間\n"
-        "/set_district `<區1> <區2> ...` - 設行政區（不加「區」字也可）\n"
-        "/set_kind `<整層|套房|分租|雅房>...` - 設房屋類型\n"
-        "/set_area `<min> <max>` - 設坪數\n"
-        "/set_pattern `<n>...` - 設房數\n"
+        "/set_price <min> <max> - 設租金區間\n"
+        "/set_district <區1> <區2> ... - 設行政區（不加「區」字也可）\n"
+        "/set_kind <整層|套房|分租|雅房>... - 設房屋類型\n"
+        "/set_area <min> <max> - 設坪數\n"
+        "/set_pattern <n>... - 設房數\n"
         "/clear - 清除所有篩選\n"
         "/pause | /resume - 暫停/恢復通知\n"
         "/run - 立即觸發一次掃描\n\n"
@@ -227,7 +227,7 @@ def handler(event, context):  # noqa: ARG001
 
     try:
         token = get_telegram_token()
-        telegram.send_message(token, chat_id, reply)
+        telegram.send_message(token, chat_id, reply, parse_mode=None)
     except Exception as e:  # noqa: BLE001
         logger.exception("回覆 Telegram 失敗：%s", e)
 

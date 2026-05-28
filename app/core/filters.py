@@ -80,7 +80,7 @@ def build_url(prefs: dict) -> str:
 
 def describe_prefs(prefs: dict) -> str:
     """把 prefs 轉成人類可讀字串，用於 Telegram /filters 回覆。"""
-    lines = ["📋 *目前篩選條件*"]
+    lines = ["📋 目前篩選條件"]
 
     sections = prefs.get("sections") or []
     if sections:
