@@ -111,3 +111,21 @@ def format_listing(item: dict) -> str:
         f"🔗 {link}",
     ]
     return "\n".join(parts)
+
+
+def format_list_item(item: dict, index: int = 0) -> str:
+    """單一物件 plain-text 格式，URL 放最後一行讓 Telegram 自動產生預覽圖。"""
+    listing_id = item.get("listing_id") or item.get("id", "?")
+    title = (item.get("title") or "(無詳細資料)")[:40]
+    price = item.get("price", "?")
+    area = item.get("area", "")
+    floor = item.get("floor", "")
+    district = (item.get("district") or "").split("-")[0]
+    house_type = item.get("type", "")
+    link = item.get("link") or f"https://rent.591.com.tw/{listing_id}"
+
+    prefix = f"{index}. " if index else ""
+    parts = [district, house_type, f"{price}元", area, floor]
+    head = "｜".join(p for p in parts if p)
+    return f"{prefix}{head}\n{title}\n{link}"
+

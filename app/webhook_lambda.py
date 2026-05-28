@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from typing import Callable
 
 import boto3
@@ -174,6 +175,7 @@ def cmd_run(args: list[str], chat_id: int) -> str:
 
 
 def cmd_list(args: list[str], chat_id: int) -> str:
+    """每筆 listing 各送一則訊息，讓 Telegram 對 URL 自動產生預覽圖。"""
     update_prefs({"chat_id": chat_id})
     PAGE_SIZE = 5
     try:
@@ -191,21 +193,26 @@ def cmd_list(args: list[str], chat_id: int) -> str:
         return f"已沒有第 {page} 頁（總共 {last_page} 頁）。輸入 /list 1 從頭看。"
 
     last_page = (total - 1) // PAGE_SIZE + 1
-    lines = [f"📑 清單 第 {page} / {last_page} 頁（共 {total} 筆）", ""]
+    token = get_telegram_token()
+
+    # 逐筆送出，每則 URL 都會在 Telegram 顯示縮圖
     for i, item in enumerate(items, start=offset + 1):
-        listing_id = item.get("listing_id", "?")
-        title = (item.get("title") or "(無詳細資料)")[:25]
-        price = item.get("price", "?")
-        area = item.get("area", "")
-        district = (item.get("district") or "").split("-")[0]
-        link = item.get("link") or f"https://rent.591.com.tw/{listing_id}"
-        lines.append(f"{i}. {district}｜{price}元｜{area}")
-        lines.append(f"   {title}")
-        lines.append(f"   {link}")
+        try:
+            telegram.send_message(
+                token,
+                chat_id,
+                telegram.format_list_item(item, index=i),
+                parse_mode=None,
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning("/list 推送 item %s 失敗: %s", item.get("listing_id"), e)
+        time.sleep(0.4)  # 友善 Telegram 1 msg/s per-chat 限制
+
+    # 最後一則：頁碼摘要 + 鍵盤（handler 會用這個 string 作為主回覆）
+    summary = f"📑 第 {page} / {last_page} 頁（共 {total} 筆）"
     if page < last_page:
-        lines.append("")
-        lines.append(f"輸入 /list {page + 1} 看下一頁")
-    return "\n".join(lines)
+        summary += f"\n輸入 /list {page + 1} 看下一頁"
+    return summary
 
 
 def cmd_reset(args: list[str], chat_id: int) -> str:
