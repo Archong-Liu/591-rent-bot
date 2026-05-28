@@ -58,7 +58,7 @@ def handler(event, context):  # noqa: ARG001
     for item in listings:
         if not item.get("id"):
             continue
-        if mark_seen(item["id"]):
+        if mark_seen(item):
             new_items.append(item)
 
     summary = f"本次新增 {len(new_items)} 筆 / 總 {len(listings)} 筆 / first_scan={is_first_scan}"

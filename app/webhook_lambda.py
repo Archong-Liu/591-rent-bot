@@ -22,7 +22,7 @@ from app.core.filters import (
     normalize_kind,
 )
 from app.core.prefs import clear_filters, get_prefs, update_prefs
-from app.core.seen import clear_seen
+from app.core.seen import clear_seen, list_recent
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -61,7 +61,8 @@ def cmd_start(args: list[str], chat_id: int) -> str:
         "/clear - 清除所有篩選\n"
         "/pause | /resume - 暫停/恢復通知\n"
         "/run - 立即觸發一次掃描\n"
-        "/reset - 清空 dedup 重新建立基準\n\n"
+        "/reset - 清空 dedup 重新建立基準\n"
+        "/list [page] - 翻頁看已抓到的物件（5 筆/頁）\n\n"
         f"{describe_prefs(prefs)}"
     )
 
@@ -172,6 +173,41 @@ def cmd_run(args: list[str], chat_id: int) -> str:
     return "🚀 已觸發掃描，新物件會陸續推送到這裡。"
 
 
+def cmd_list(args: list[str], chat_id: int) -> str:
+    update_prefs({"chat_id": chat_id})
+    PAGE_SIZE = 5
+    try:
+        page = int(args[0]) if args else 1
+    except ValueError:
+        page = 1
+    page = max(1, page)
+    offset = (page - 1) * PAGE_SIZE
+
+    items, total = list_recent(offset=offset, limit=PAGE_SIZE)
+    if total == 0:
+        return "目前 dedup 表沒有任何資料，按 🚀 立刻掃 開始記錄。"
+    if not items:
+        last_page = (total - 1) // PAGE_SIZE + 1
+        return f"已沒有第 {page} 頁（總共 {last_page} 頁）。輸入 /list 1 從頭看。"
+
+    last_page = (total - 1) // PAGE_SIZE + 1
+    lines = [f"📑 清單 第 {page} / {last_page} 頁（共 {total} 筆）", ""]
+    for i, item in enumerate(items, start=offset + 1):
+        listing_id = item.get("listing_id", "?")
+        title = (item.get("title") or "(無詳細資料)")[:25]
+        price = item.get("price", "?")
+        area = item.get("area", "")
+        district = (item.get("district") or "").split("-")[0]
+        link = item.get("link") or f"https://rent.591.com.tw/{listing_id}"
+        lines.append(f"{i}. {district}｜{price}元｜{area}")
+        lines.append(f"   {title}")
+        lines.append(f"   {link}")
+    if page < last_page:
+        lines.append("")
+        lines.append(f"輸入 /list {page + 1} 看下一頁")
+    return "\n".join(lines)
+
+
 def cmd_reset(args: list[str], chat_id: int) -> str:
     update_prefs({"chat_id": chat_id, "last_scan_at": None})
     n = clear_seen()
@@ -195,6 +231,7 @@ COMMANDS: dict[str, Callable[[list[str], int], str]] = {
     "/resume": cmd_resume,
     "/run": cmd_run,
     "/reset": cmd_reset,
+    "/list": cmd_list,
 }
 
 

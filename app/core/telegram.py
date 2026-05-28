@@ -39,9 +39,9 @@ def send_message(
 
 QUICK_KEYBOARD = {
     "keyboard": [
-        ["📋 看條件", "🚀 立刻掃"],
+        ["📋 看條件", "📑 看清單", "🚀 立刻掃"],
         ["⏸ 暫停", "▶️ 恢復"],
-        ["🗑 清除條件"],
+        ["🗑 清除條件", "♻️ 重新建立基準"],
     ],
     "resize_keyboard": True,
     "is_persistent": True,
@@ -50,10 +50,12 @@ QUICK_KEYBOARD = {
 # 按鈕文字 → 對應的 slash command
 BUTTON_TO_COMMAND = {
     "📋 看條件": "/filters",
+    "📑 看清單": "/list",
     "🚀 立刻掃": "/run",
     "⏸ 暫停": "/pause",
     "▶️ 恢復": "/resume",
     "🗑 清除條件": "/clear",
+    "♻️ 重新建立基準": "/reset",
 }
 
 
