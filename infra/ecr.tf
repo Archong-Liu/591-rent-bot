@@ -32,12 +32,12 @@ resource "aws_ecr_lifecycle_policy" "scraper" {
       },
       {
         rulePriority = 2
-        description  = "保留最新 10 個有 tag 的 image"
+        description  = "只保留最新 1 個有 tag 的 image（live image）"
         selection = {
           tagStatus     = "tagged"
           tagPrefixList = ["2"]
           countType     = "imageCountMoreThan"
-          countNumber   = 10
+          countNumber   = 1
         }
         action = {
           type = "expire"
