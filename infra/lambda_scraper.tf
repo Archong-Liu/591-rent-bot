@@ -30,6 +30,6 @@ resource "aws_lambda_function" "scraper" {
 
 resource "aws_cloudwatch_log_group" "scraper" {
   name              = "/aws/lambda/${aws_lambda_function.scraper.function_name}"
-  retention_in_days = 14
+  retention_in_days = 7
   tags              = local.tags
 }
