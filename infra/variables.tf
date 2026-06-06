@@ -21,3 +21,15 @@ variable "scraper_max_pages" {
   type        = number
   default     = 5
 }
+
+variable "listing_ttl_days" {
+  description = "物件消失後幾天從 DB 刪除（持續在架者每次掃描刷新，不會被刪）"
+  type        = number
+  default     = 7
+}
+
+variable "fresh_window_days" {
+  description = "/list 只顯示最近幾天內仍確認在架的物件"
+  type        = number
+  default     = 3
+}

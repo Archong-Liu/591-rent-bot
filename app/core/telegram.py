@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import time
 
 import requests
 
@@ -113,6 +114,18 @@ def format_listing(item: dict) -> str:
     return "\n".join(parts)
 
 
+def _relative_time(epoch: int) -> str:
+    """epoch 秒 → 「剛剛 / X小時前 / X天前」。"""
+    if not epoch:
+        return ""
+    diff = int(time.time()) - int(epoch)
+    if diff < 3600:
+        return "剛剛"
+    if diff < 86400:
+        return f"{diff // 3600} 小時前"
+    return f"{diff // 86400} 天前"
+
+
 def format_list_item(item: dict, index: int = 0) -> str:
     """單一物件 plain-text 格式，URL 放最後一行讓 Telegram 自動產生預覽圖。"""
     listing_id = item.get("listing_id") or item.get("id", "?")
@@ -124,8 +137,12 @@ def format_list_item(item: dict, index: int = 0) -> str:
     house_type = item.get("type", "")
     link = item.get("link") or f"https://rent.591.com.tw/{listing_id}"
 
+    seen_ts = int(item.get("last_seen_at") or item.get("first_seen_at") or 0)
+    seen_rel = _relative_time(seen_ts)
+
     prefix = f"{index}. " if index else ""
     parts = [district, house_type, f"{price}元", area, floor]
     head = "｜".join(p for p in parts if p)
-    return f"{prefix}{head}\n{title}\n{link}"
+    tail = f"\n🕒 最後確認 {seen_rel}" if seen_rel else ""
+    return f"{prefix}{head}\n{title}{tail}\n{link}"
 

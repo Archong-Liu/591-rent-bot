@@ -25,6 +25,7 @@ resource "aws_lambda_function" "webhook" {
       SEEN_TABLE         = aws_dynamodb_table.seen.name
       SSM_TELEGRAM_TOKEN = aws_ssm_parameter.telegram_token.name
       SCRAPER_FN_NAME    = aws_lambda_function.scraper.function_name
+      FRESH_WINDOW_DAYS  = tostring(var.fresh_window_days)
     }
   }
 

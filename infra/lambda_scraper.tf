@@ -18,6 +18,7 @@ resource "aws_lambda_function" "scraper" {
       SEEN_TABLE         = aws_dynamodb_table.seen.name
       SSM_TELEGRAM_TOKEN = aws_ssm_parameter.telegram_token.name
       MAX_PAGES          = tostring(var.scraper_max_pages)
+      LISTING_TTL_DAYS   = tostring(var.listing_ttl_days)
     }
   }
 
