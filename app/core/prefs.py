@@ -8,17 +8,12 @@ from typing import Any
 
 import boto3
 
+from app._lazy import lazy
+
 DEFAULT_USER_ID = "default"
 TABLE_NAME = os.environ.get("PREFS_TABLE", "rent_prefs")
 
-_table = None
-
-
-def _get_table():
-    global _table
-    if _table is None:
-        _table = boto3.resource("dynamodb").Table(TABLE_NAME)
-    return _table
+_get_table = lazy(lambda: boto3.resource("dynamodb").Table(TABLE_NAME))
 
 
 def _from_ddb(item: dict | None) -> dict:

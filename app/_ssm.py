@@ -6,7 +6,9 @@ import os
 
 import boto3
 
-_ssm = None
+from app._lazy import lazy
+
+_get_client = lazy(lambda: boto3.client("ssm"))
 _cache: dict[str, str] = {}
 
 
@@ -15,11 +17,7 @@ def get_parameter(name: str, with_decryption: bool = True) -> str:
     if name in _cache:
         return _cache[name]
 
-    global _ssm
-    if _ssm is None:
-        _ssm = boto3.client("ssm")
-
-    resp = _ssm.get_parameter(Name=name, WithDecryption=with_decryption)
+    resp = _get_client().get_parameter(Name=name, WithDecryption=with_decryption)
     value = resp["Parameter"]["Value"]
     _cache[name] = value
     return value

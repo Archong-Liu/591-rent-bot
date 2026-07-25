@@ -123,6 +123,8 @@ app/
 ├── core/prefs.py            # DynamoDB rent_prefs CRUD
 ├── core/seen.py             # DynamoDB rent_seen 去重 + 存活刷新
 ├── core/telegram.py         # Telegram Bot API
+├── core/models.py           # 共用的 `Listing` 型別
+├── _lazy.py                 # boto3 client/resource 的 lazy-singleton 快取
 ├── scraper_lambda.py        # 排程觸發入口
 └── webhook_lambda.py        # Telegram webhook 入口
 

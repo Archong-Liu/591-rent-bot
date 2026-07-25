@@ -10,6 +10,8 @@ import re
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
+from app.core.models import Listing
+
 BASE_URL = "https://rent.591.com.tw"
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -23,7 +25,7 @@ _RE_PAGE = re.compile(r"page=(\d+)")
 _RE_UPDATE = re.compile(r"(分鐘|小時|天|剛剛|昨日).*(更新|瀏覽|前)")
 
 
-def _parse_item(item_el) -> dict:
+def _parse_item(item_el) -> Listing:
     listing_id = item_el.get("data-id", "")
 
     link_el = item_el.select_one("a.link.v-middle")
@@ -77,7 +79,7 @@ def _parse_item(item_el) -> dict:
     }
 
 
-def _parse_page_html(html: str) -> tuple[list[dict], int]:
+def _parse_page_html(html: str) -> tuple[list[Listing], int]:
     """Return (this page's listings, total page count)."""
     soup = BeautifulSoup(html, "html.parser")
     items = soup.find_all("div", class_="item", attrs={"data-id": True})
@@ -97,14 +99,14 @@ def scrape(
     max_pages: int = 5,
     delay_ms: int = 2500,
     headless: bool = True,
-) -> list[dict]:
+) -> list[Listing]:
     """Scrape a 591 listing page and return its listings.
 
     `url` must already be a fully-built listing URL (with region / section /
     rentprice etc. filters applied). The first page is `url` as-is; later
     pages are fetched by appending `&page=N`.
     """
-    listings: list[dict] = []
+    listings: list[Listing] = []
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch(

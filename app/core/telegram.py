@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
-import os
 import time
 
 import requests
 
+from app.core.models import Listing
+
 API_BASE = "https://api.telegram.org"
+
+
+def _escape_markdown(s: str) -> str:
+    """Escape Telegram Markdown v1's special chars: _ * [ ]"""
+    for ch in ("_", "*", "[", "]"):
+        s = s.replace(ch, f"\\{ch}")
+    return s
 
 
 def _bot_url(token: str, method: str) -> str:
@@ -66,21 +74,15 @@ def set_webhook(token: str, url: str) -> dict:
     return resp.json()
 
 
-def format_digest(items: list[dict]) -> str:
+def format_digest(items: list[Listing]) -> str:
     """Combine several listings into one compact Markdown message (one line each)."""
-
-    def esc(s: str) -> str:
-        for ch in ("_", "*", "[", "]"):
-            s = s.replace(ch, f"\\{ch}")
-        return s
-
     lines = [f"🆕 *{len(items)} 筆新物件*", ""]
     for i, item in enumerate(items, 1):
-        district = esc(item.get("district", "").split("-")[0] or "?")
-        house_type = esc(item.get("type", ""))
+        district = _escape_markdown(item.get("district", "").split("-")[0] or "?")
+        house_type = _escape_markdown(item.get("type", ""))
         price = item.get("price", "?")
-        area = esc(item.get("area", ""))
-        title = esc((item.get("title") or "(無標題)")[:25])
+        area = _escape_markdown(item.get("area", ""))
+        title = _escape_markdown((item.get("title") or "(無標題)")[:25])
         link = item.get("link", "")
         lines.append(
             f"{i}. {district}｜{house_type}｜{price}元｜{area}\n   {title}\n   {link}"
@@ -88,16 +90,9 @@ def format_digest(items: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def format_listing(item: dict) -> str:
+def format_listing(item: Listing) -> str:
     """Format a single scraped listing as a Telegram Markdown message."""
-
-    def esc(s: str) -> str:
-        # Telegram Markdown v1 treats _ * [ ] as special; escape only those.
-        for ch in ("_", "*", "[", "]"):
-            s = s.replace(ch, f"\\{ch}")
-        return s
-
-    title = esc(item.get("title", "(無標題)"))
+    title = _escape_markdown(item.get("title", "(無標題)"))
     price = item.get("price", "?")
     area = item.get("area", "")
     floor = item.get("floor", "")
@@ -107,8 +102,8 @@ def format_listing(item: dict) -> str:
 
     parts = [
         f"🏠 *{title}*",
-        f"💰 {price} 元/月  |  📐 {esc(area)}  |  🏢 {esc(floor)}",
-        f"🏘 {esc(house_type)}  |  📍 {esc(district)}",
+        f"💰 {price} 元/月  |  📐 {_escape_markdown(area)}  |  🏢 {_escape_markdown(floor)}",
+        f"🏘 {_escape_markdown(house_type)}  |  📍 {_escape_markdown(district)}",
         f"🔗 {link}",
     ]
     return "\n".join(parts)
@@ -126,9 +121,13 @@ def _relative_time(epoch: int) -> str:
     return f"{diff // 86400} 天前"
 
 
-def format_list_item(item: dict, index: int = 0) -> str:
+def format_list_item(item: Listing, index: int = 0) -> str:
     """Format one listing as plain text, with the URL on its own last line so
-    Telegram renders a link preview for it."""
+    Telegram renders a link preview for it.
+
+    Sent with parse_mode=None, so unlike format_digest/format_listing this
+    intentionally does not run values through _escape_markdown.
+    """
     listing_id = item.get("listing_id") or item.get("id", "?")
     title = (item.get("title") or "(無詳細資料)")[:40]
     price = item.get("price", "?")
