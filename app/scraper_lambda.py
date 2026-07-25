@@ -1,6 +1,6 @@
-"""Scraper Lambda：EventBridge Scheduler 每 4 小時觸發。
+"""Scraper Lambda: triggered every 4 hours by EventBridge Scheduler.
 
-流程：讀 prefs → 組 URL → 爬 591 → dedup → 推 Telegram。
+Flow: read prefs -> build URL -> scrape 591 -> dedup -> push to Telegram.
 """
 
 from __future__ import annotations
@@ -20,8 +20,8 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 MAX_PAGES = int(os.environ.get("MAX_PAGES", "5"))
-DIGEST_BATCH = 5      # 每則訊息塞幾筆
-NEW_ITEM_CAP = 25     # 單次掃描最多推幾筆，超過顯示 overflow 訊息
+DIGEST_BATCH = 5      # listings packed into each digest message
+NEW_ITEM_CAP = 25     # max listings pushed per scan; excess shown as an overflow notice
 
 
 def _chunks(seq, n):
@@ -53,7 +53,7 @@ def handler(event, context):  # noqa: ARG001
 
     token = get_telegram_token()
 
-    # dedup：未見過的存進 new_items，已見過跳過
+    # Dedup: unseen listings go into new_items; already-seen ones are skipped.
     new_items: list[dict] = []
     for item in listings:
         if not item.get("id"):
@@ -65,7 +65,7 @@ def handler(event, context):  # noqa: ARG001
     logger.info(summary)
 
     if is_first_scan:
-        # 第一次掃：不推 listings，只送基準資料訊息
+        # First-ever scan: don't push individual listings, just announce the baseline.
         if new_items:
             telegram.send_message(
                 token, chat_id,
@@ -79,7 +79,7 @@ def handler(event, context):  # noqa: ARG001
                 parse_mode=None,
             )
     elif new_items:
-        # 之後的掃描：digest 模式，cap 上限
+        # Subsequent scans: digest mode, capped.
         to_send = new_items[:NEW_ITEM_CAP]
         overflow = len(new_items) - len(to_send)
         for chunk in _chunks(to_send, DIGEST_BATCH):
@@ -87,7 +87,7 @@ def handler(event, context):  # noqa: ARG001
                 telegram.send_message(token, chat_id, telegram.format_digest(chunk))
             except Exception as e:  # noqa: BLE001
                 logger.warning("digest 推送失敗: %s", e)
-            time.sleep(0.5)  # 友善 Telegram per-chat rate limit (1 msg/s)
+            time.sleep(0.5)  # stay under Telegram's 1 msg/s per-chat rate limit
         if overflow > 0:
             telegram.send_message(
                 token, chat_id,
@@ -95,14 +95,15 @@ def handler(event, context):  # noqa: ARG001
                 parse_mode=None,
             )
     elif event.get("notify_when_empty"):
-        # /run 觸發時即便 0 筆也要回報
+        # /run triggers a reply even when the scan finds 0 new listings.
         telegram.send_message(
             token, chat_id,
             f"⏰ 本次掃描無新物件（共看了 {len(listings)} 筆）",
             parse_mode=None,
         )
 
-    # 更新 last_scan_at（只在成功抓到東西時更新，避免反爬 0 筆讓「first scan」標記提早消失）
+    # Only bump last_scan_at when the scan actually returned listings, so an
+    # anti-bot 0-result scan doesn't prematurely clear the "first scan" flag.
     if listings:
         update_prefs({"last_scan_at": int(time.time())})
 

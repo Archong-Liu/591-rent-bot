@@ -6,7 +6,7 @@ terraform {
       version = "~> 5.0"
     }
   }
-  # local state — terraform.tfstate 在這個目錄；勿入 git
+  # Local state — terraform.tfstate lives in this directory; keep it out of git.
 }
 
 provider "aws" {

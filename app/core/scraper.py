@@ -1,6 +1,6 @@
-"""591 台北租屋爬蟲核心。
+"""591 Taipei rental scraper core.
 
-對外提供 `scrape(url, max_pages)` 函式，被 CLI 與 Lambda 共用。
+Exposes `scrape(url, max_pages)`, shared by the local CLI and the Lambda handler.
 """
 
 from __future__ import annotations
@@ -18,6 +18,8 @@ USER_AGENT = (
 )
 
 _RE_PAGE = re.compile(r"page=(\d+)")
+# Matches 591's relative-time phrasing (minutes/hours/days/just now + updated/viewed/ago)
+# to pick out the "last updated" span among a listing's otherwise-untagged spans.
 _RE_UPDATE = re.compile(r"(分鐘|小時|天|剛剛|昨日).*(更新|瀏覽|前)")
 
 
@@ -39,16 +41,22 @@ def _parse_item(item_el) -> dict:
         "",
     )
 
+    # 591 renders the price under one of two classes depending on listing layout.
     price_el = item_el.select_one("strong.text-26px, strong.font-arial")
     price = price_el.get_text(strip=True).replace(",", "") if price_el else ""
 
+    # House type / district / poster role aren't tagged with distinct classes,
+    # so pull them out of the plain (classless) spans by position/pattern instead.
     plain_spans = [
         s.get_text(strip=True)
         for s in item_el.find_all("span", class_=False)
         if s.get_text(strip=True)
     ]
     house_type = plain_spans[0] if plain_spans else ""
+    # District spans look like "大安區-xxx" — the dash distinguishes them from
+    # other plain spans that don't carry a district/section marker.
     district = next((s for s in plain_spans if re.search(r"[縣市區][-—]", s)), "")
+    # Identify the poster's role by keyword: agent (仲介) / landlord (房東) / manager (管理員).
     agent = next(
         (s for s in plain_spans if any(k in s for k in ("仲介", "房東", "管理員"))),
         "",
@@ -70,7 +78,7 @@ def _parse_item(item_el) -> dict:
 
 
 def _parse_page_html(html: str) -> tuple[list[dict], int]:
-    """回傳 (本頁 listings, total_pages)。"""
+    """Return (this page's listings, total page count)."""
     soup = BeautifulSoup(html, "html.parser")
     items = soup.find_all("div", class_="item", attrs={"data-id": True})
     results = [_parse_item(item) for item in items]
@@ -90,16 +98,19 @@ def scrape(
     delay_ms: int = 2500,
     headless: bool = True,
 ) -> list[dict]:
-    """爬取 591 列表頁，回傳 listings。
+    """Scrape a 591 listing page and return its listings.
 
-    `url` 必須是已組好的列表 URL（含 region / section / rentprice 等 filter）。
-    第一頁就是 url 原樣；後續頁透過附加 &page=N 取得。
+    `url` must already be a fully-built listing URL (with region / section /
+    rentprice etc. filters applied). The first page is `url` as-is; later
+    pages are fetched by appending `&page=N`.
     """
     listings: list[dict] = []
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch(
             headless=headless,
+            # Lambda's runtime has no /dev/shm and no sandbox namespace, so
+            # Chromium needs these flags or it crashes with TargetClosedError.
             args=[
                 "--single-process",
                 "--no-sandbox",
@@ -119,6 +130,8 @@ def scrape(
                 print(f"[scraper] 第 {page_num} 頁載入失敗：{e}")
                 break
 
+            # Extra settle time on top of networkidle — paces our own request
+            # rate against 591's anti-bot rather than waiting on network state alone.
             page.wait_for_timeout(delay_ms)
             items, total_pages = _parse_page_html(page.content())
 

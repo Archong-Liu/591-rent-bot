@@ -1,5 +1,5 @@
-# Webhook Lambda 從預先建好的 build dir 打包
-# build dir 由 scripts/build_webhook_zip.sh 產生（app/ + pip install requests）
+# Webhook Lambda is packaged from a pre-built build dir
+# (produced by scripts/build_webhook_zip.sh: app/ + `pip install requests`)
 
 data "archive_file" "webhook" {
   type        = "zip"
@@ -38,6 +38,8 @@ resource "aws_cloudwatch_log_group" "webhook" {
   tags              = local.tags
 }
 
-# 對外 HTTPS 入口改用 API Gateway HTTP API（個人 AWS 帳號的 Function URL
-# 因組織層級政策一直回 403，pivot 至 API Gateway 走另一條 IAM 路徑）。
-# API 資源定義於 infra/apigateway.tf。
+# The public HTTPS entry point uses an API Gateway HTTP API rather than a
+# Lambda Function URL: on this personal AWS account, Function URLs kept
+# returning 403 due to an org-level policy, so we pivoted to API Gateway,
+# which uses a different IAM path.
+# API resources are defined in infra/apigateway.tf.

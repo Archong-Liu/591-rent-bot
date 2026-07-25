@@ -5,11 +5,11 @@ resource "aws_lambda_function" "scraper" {
   image_uri     = "${aws_ecr_repository.scraper.repository_url}:${var.scraper_image_tag}"
   architectures = ["x86_64"]
 
-  timeout     = 300 # 5 分鐘
+  timeout     = 300 # 5 minutes
   memory_size = 2048
 
   ephemeral_storage {
-    size = 2048 # /tmp 大小，Chromium 需要
+    size = 2048 # /tmp size — Chromium needs the headroom
   }
 
   environment {
@@ -24,8 +24,8 @@ resource "aws_lambda_function" "scraper" {
 
   tags = local.tags
 
-  # 由於 image tag 是 deploy.sh 推上 ECR 後才存在，
-  # 首次 terraform apply 前必須先 build & push。
+  # The image tag only exists once deploy.sh has pushed it to ECR, so the
+  # first `terraform apply` requires a build & push beforehand.
   depends_on = [aws_ecr_repository.scraper]
 }
 

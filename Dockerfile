@@ -1,19 +1,19 @@
-# Scraper Lambda image — 基於官方 Playwright Python（已含 Chromium）
-# 注意：image tag 的 v1.49.0 必須對應 requirements.txt 內的 playwright==1.49.0
+# Scraper Lambda image — based on the official Playwright Python image (Chromium included)
+# Note: the v1.49.0 image tag must match the playwright==1.49.0 pin in requirements.txt
 FROM mcr.microsoft.com/playwright/python:v1.49.0-jammy
 
-# AWS Lambda 環境變數
+# AWS Lambda environment variables
 ENV LAMBDA_TASK_ROOT=/var/task \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR ${LAMBDA_TASK_ROOT}
 
-# 先裝依賴（會被 docker layer cache）
+# Install dependencies first (cached as its own Docker layer)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt awslambdaric==2.2.0
 
-# 複製 app 程式碼
+# Copy application code
 COPY app/ ./app/
 
 # Lambda Runtime Interface Client

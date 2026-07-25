@@ -1,5 +1,5 @@
-# API Gateway HTTP API → webhook Lambda
-# 取代 Lambda Function URL 作為 Telegram webhook 入口。
+# API Gateway HTTP API -> webhook Lambda
+# Replaces a Lambda Function URL as the Telegram webhook entry point.
 
 resource "aws_apigatewayv2_api" "webhook" {
   name          = "${local.project}-webhook-api"
@@ -37,6 +37,7 @@ resource "aws_lambda_permission" "webhook_apigw" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.webhook.function_name
   principal     = "apigateway.amazonaws.com"
-  # 任何 route / stage 都可呼叫（這個 API 只有一條 route，沒必要鎖死）
+  # Any route/stage may invoke it — this API only has the one route, so
+  # there's no need to lock the source ARN down further.
   source_arn = "${aws_apigatewayv2_api.webhook.execution_arn}/*/*"
 }

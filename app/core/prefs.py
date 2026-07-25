@@ -1,4 +1,4 @@
-"""rent_prefs DynamoDB CRUD（單使用者，user_id 寫死 "default"）。"""
+"""rent_prefs DynamoDB CRUD (single-user; user_id is hardcoded to "default")."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def _get_table():
 
 
 def _from_ddb(item: dict | None) -> dict:
-    """把 DynamoDB 回來的 item（含 Decimal、Set）轉成標準 Python 結構。"""
+    """Convert a DynamoDB item (with Decimal/Set values) into plain Python types."""
     if not item:
         return {"user_id": DEFAULT_USER_ID, "enabled": True}
 
@@ -31,7 +31,7 @@ def _from_ddb(item: dict | None) -> dict:
         if isinstance(v, Decimal):
             out[k] = int(v) if v == v.to_integral() else float(v)
         elif isinstance(v, set):
-            # DynamoDB SS / NS → Python list（內容轉 int/str）
+            # DynamoDB SS / NS -> Python list (elements converted to int/str)
             items = list(v)
             if items and all(isinstance(x, Decimal) for x in items):
                 out[k] = [int(x) if x == x.to_integral() else float(x) for x in items]
@@ -48,9 +48,10 @@ def get_prefs(user_id: str = DEFAULT_USER_ID) -> dict:
 
 
 def update_prefs(updates: dict, user_id: str = DEFAULT_USER_ID) -> dict:
-    """部分更新 prefs；不在 updates 內的欄位不動。
+    """Partially update prefs; fields not present in `updates` are left untouched.
 
-    特殊處理：value 為 None 或空 list 時，刪除該欄位（讓 /clear 能清空）。
+    Special case: a value of None or an empty list removes that field
+    (this is what lets /clear wipe filters).
     """
     if not updates:
         return get_prefs(user_id)
@@ -97,7 +98,7 @@ def update_prefs(updates: dict, user_id: str = DEFAULT_USER_ID) -> dict:
 
 
 def clear_filters(user_id: str = DEFAULT_USER_ID) -> dict:
-    """清除所有篩選欄位，但保留 chat_id 和 enabled。"""
+    """Clear all filter fields, keeping chat_id and enabled intact."""
     return update_prefs(
         {
             "sections": None,

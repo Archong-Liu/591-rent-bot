@@ -1,8 +1,9 @@
-"""rent_seen DynamoDB 去重 + 完整 listing 儲存 + 存活刷新。
+"""rent_seen DynamoDB dedup + full listing storage + liveness refresh.
 
-mark_seen() 第一次見到寫入完整 item；之後每次見到刷新 last_seen_at 與
-TTL，達成「物件下架 N 天後自動過期」的時效性保留。
-list_recent() 只回傳最近仍確認在架的物件。
+mark_seen() writes the full item dict the first time a listing is seen;
+every time after that it refreshes last_seen_at and the TTL, giving
+listings a "delisted -> auto-expires after N days" retention policy.
+list_recent() only returns listings confirmed present recently.
 """
 
 from __future__ import annotations
@@ -17,9 +18,10 @@ from botocore.exceptions import ClientError
 
 TABLE_NAME = os.environ.get("SEEN_TABLE", "rent_seen")
 
-# 物件「消失後」幾天從 DB 刪除（持續在架者每次掃描會刷新 TTL，不會被刪）
+# Days after a listing *disappears* before it's deleted from the table
+# (listings still live get their TTL refreshed on every scan, so they never hit this).
 LISTING_TTL_DAYS = int(os.environ.get("LISTING_TTL_DAYS", "7"))
-# /list 只顯示最近幾天內仍確認在架的物件
+# /list only shows listings confirmed live within this many days.
 FRESH_WINDOW_DAYS = int(os.environ.get("FRESH_WINDOW_DAYS", "3"))
 
 _table = None
@@ -33,7 +35,7 @@ def _get_table():
 
 
 def _serialize(value: Any) -> Any:
-    """DynamoDB 不收 float / 純 None list；轉成它能存的型別。"""
+    """DynamoDB rejects float and bare-None list entries; coerce to storable types."""
     if isinstance(value, float):
         return Decimal(str(value))
     if isinstance(value, list):
@@ -44,11 +46,14 @@ def _serialize(value: Any) -> Any:
 
 
 def mark_seen(item: dict, ttl_days: int = LISTING_TTL_DAYS) -> bool:
-    """第一次見到回 True 並寫入完整 item；已見過回 False 但刷新存活時間。
+    """Return True and store the full item on first sighting; return False
+    (without re-notifying) on subsequent sightings, but still refresh liveness.
 
-    item 必須含 'id'。其餘欄位（title, price, …）一併存進去供 /list 顯示。
-    無論新舊都會把 last_seen_at / ttl 推到「現在 + ttl_days」，
-    所以持續出現的物件不會過期，消失的物件會在 ttl_days 後被 DynamoDB TTL 刪掉。
+    `item` must have an 'id'. The remaining fields (title, price, ...) are
+    stored too so /list can display them.
+    Either way, last_seen_at/ttl are pushed to "now + ttl_days", so a listing
+    that keeps reappearing never expires, while one that stops appearing gets
+    deleted by DynamoDB TTL ttl_days after its last sighting.
     """
     listing_id = str(item.get("id") or item.get("listing_id") or "")
     if not listing_id:
@@ -79,7 +84,7 @@ def mark_seen(item: dict, ttl_days: int = LISTING_TTL_DAYS) -> bool:
     except ClientError as e:
         if e.response["Error"]["Code"] != "ConditionalCheckFailedException":
             raise
-        # 已見過：刷新存活時間（last_seen_at + ttl），不重複通知
+        # Already seen: refresh liveness (last_seen_at + ttl) without re-notifying.
         _get_table().update_item(
             Key={"listing_id": listing_id},
             UpdateExpression="SET last_seen_at = :now, #ttl = :ttl",
@@ -102,7 +107,7 @@ def _scan_all() -> list[dict]:
 
 
 def _seen_ts(item: dict) -> int:
-    """取 last_seen_at，舊資料沒有就退回 first_seen_at。"""
+    """Return last_seen_at, falling back to first_seen_at for older records."""
     return int(item.get("last_seen_at") or item.get("first_seen_at") or 0)
 
 
@@ -111,10 +116,11 @@ def list_recent(
     limit: int = 5,
     fresh_within_days: int = FRESH_WINDOW_DAYS,
 ) -> tuple[list[dict], int]:
-    """回傳 (這頁 items, 符合新鮮度的總筆數)。
+    """Return (this page's items, total count matching the freshness filter).
 
-    只保留最近 fresh_within_days 天內仍確認在架的物件，按 last_seen_at 由新到舊。
-    fresh_within_days <= 0 表示不過濾（顯示全部）。
+    Only keeps listings confirmed live within the last fresh_within_days days,
+    sorted by last_seen_at descending.
+    fresh_within_days <= 0 disables the filter (shows everything).
     """
     all_items = _scan_all()
     if fresh_within_days > 0:
@@ -125,7 +131,7 @@ def list_recent(
 
 
 def clear_seen() -> int:
-    """清空整張 rent_seen 表，回傳刪除筆數。"""
+    """Wipe the entire rent_seen table; returns the number of items deleted."""
     table = _get_table()
     deleted = 0
     scan_kwargs = {"ProjectionExpression": "listing_id"}

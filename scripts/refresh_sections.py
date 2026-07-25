@@ -1,7 +1,7 @@
-"""透過 Playwright 點擊每個行政區按鈕，抓出 591 真實的 section_id 映射。
+"""Click through each district button via Playwright to recover 591's real section_id mapping.
 
-用法： python scripts/refresh_sections.py
-輸出： app/data/taipei_sections.json
+Usage: python scripts/refresh_sections.py
+Output: app/data/taipei_sections.json
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ def main():
         page = context.new_page()
 
         for district in TAIPEI_DISTRICTS:
-            # 每次都重新載入乾淨的列表頁，避免 filter 累加
+            # Reload a fresh listing page each time so filters don't accumulate.
             page.goto("https://rent.591.com.tw/list?region=1", wait_until="networkidle", timeout=30000)
             page.wait_for_timeout(1500)
 

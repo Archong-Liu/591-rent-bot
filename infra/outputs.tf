@@ -1,21 +1,21 @@
 output "ecr_repository_url" {
-  description = "Scraper ECR repo（docker push 用）"
+  description = "Scraper ECR repo (used for docker push)"
   value       = aws_ecr_repository.scraper.repository_url
 }
 
 output "scraper_function_name" {
-  description = "Scraper Lambda 名稱"
+  description = "Scraper Lambda name"
   value       = aws_lambda_function.scraper.function_name
 }
 
 output "webhook_url" {
-  description = "Telegram setWebhook 用的 URL（API Gateway HTTP API）"
-  # invoke_url 的 trailing slash 不固定，用 trimsuffix 確保只有一條
+  description = "URL to register with Telegram setWebhook (the API Gateway HTTP API)"
+  # invoke_url's trailing slash isn't guaranteed, so trimsuffix keeps exactly one.
   value = "${trimsuffix(aws_apigatewayv2_stage.webhook.invoke_url, "/")}/webhook"
 }
 
 output "ssm_telegram_token_name" {
-  description = "SSM parameter 名稱，部署完用 aws ssm put-parameter 填入真值"
+  description = "SSM parameter name — fill in the real value post-deploy via aws ssm put-parameter"
   value       = aws_ssm_parameter.telegram_token.name
 }
 

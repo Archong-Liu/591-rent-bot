@@ -1,6 +1,7 @@
-"""Webhook Lambda：處理 Telegram bot 指令。
+"""Webhook Lambda: handles Telegram bot commands.
 
-由 Lambda Function URL 觸發（HTTP POST，body 是 Telegram update JSON）。
+Triggered by an API Gateway HTTP API route (HTTP POST; body is the
+Telegram update JSON).
 """
 
 from __future__ import annotations
@@ -43,7 +44,7 @@ def _invoke_scraper_async() -> None:
     )
 
 
-# -- 指令 handlers --------------------------------------------------------
+# -- command handlers -------------------------------------------------------
 
 
 def cmd_start(args: list[str], chat_id: int) -> str:
@@ -175,7 +176,7 @@ def cmd_run(args: list[str], chat_id: int) -> str:
 
 
 def cmd_list(args: list[str], chat_id: int) -> str:
-    """每筆 listing 各送一則訊息，讓 Telegram 對 URL 自動產生預覽圖。"""
+    """Send each listing as its own message, so Telegram renders a link preview for it."""
     update_prefs({"chat_id": chat_id})
     PAGE_SIZE = 5
     try:
@@ -195,7 +196,7 @@ def cmd_list(args: list[str], chat_id: int) -> str:
     last_page = (total - 1) // PAGE_SIZE + 1
     token = get_telegram_token()
 
-    # 逐筆送出，每則 URL 都會在 Telegram 顯示縮圖
+    # Send one message per listing so each URL gets its own Telegram preview thumbnail.
     for i, item in enumerate(items, start=offset + 1):
         try:
             telegram.send_message(
@@ -206,9 +207,9 @@ def cmd_list(args: list[str], chat_id: int) -> str:
             )
         except Exception as e:  # noqa: BLE001
             logger.warning("/list 推送 item %s 失敗: %s", item.get("listing_id"), e)
-        time.sleep(0.4)  # 友善 Telegram 1 msg/s per-chat 限制
+        time.sleep(0.4)  # stay under Telegram's 1 msg/s per-chat rate limit
 
-    # 最後一則：頁碼摘要 + 鍵盤（handler 會用這個 string 作為主回覆）
+    # Final message: page summary + keyboard (the handler uses this string as the main reply).
     summary = f"📑 第 {page} / {last_page} 頁（共 {total} 筆）"
     if page < last_page:
         summary += f"\n輸入 /list {page + 1} 看下一頁"
@@ -242,7 +243,7 @@ COMMANDS: dict[str, Callable[[list[str], int], str]] = {
 }
 
 
-# -- entry point ----------------------------------------------------------
+# -- entry point -------------------------------------------------------------
 
 
 def handler(event, context):  # noqa: ARG001
@@ -264,10 +265,10 @@ def handler(event, context):  # noqa: ARG001
     text = (message.get("text") or "").strip()
     chat_id = message["chat"]["id"]
 
-    # 將快捷按鈕文字（例如「📋 看條件」）轉成對應的 slash command
+    # Map a quick-keyboard button label (e.g. "📋 看條件") to its slash command.
     text = telegram.BUTTON_TO_COMMAND.get(text, text)
 
-    # 取出指令（去掉 @botname suffix）
+    # Extract the command (strip any @botname suffix, used in group chats).
     parts = text.split()
     if not parts or not parts[0].startswith("/"):
         reply = "輸入 /start 查看可用指令。"
