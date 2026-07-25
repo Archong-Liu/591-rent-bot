@@ -26,7 +26,7 @@ Webhook Lambda (Function URL) ◀──/commands── Telegram Bot
 
 ```bash
 python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-cli.txt
 python3 -m playwright install chromium
 
 # 抓 1 頁存 CSV
