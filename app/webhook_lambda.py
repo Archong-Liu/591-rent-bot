@@ -6,6 +6,7 @@ Telegram update JSON).
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
@@ -14,7 +15,6 @@ from typing import Callable
 
 import boto3
 
-from app._lazy import lazy
 from app._ssm import get_telegram_token
 from app.core import telegram
 from app.core.filters import (
@@ -31,7 +31,11 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 SCRAPER_FN_NAME = os.environ.get("SCRAPER_FN_NAME", "")
-_get_lambda_client = lazy(lambda: boto3.client("lambda"))
+
+
+@functools.cache
+def _get_lambda_client():
+    return boto3.client("lambda")
 
 
 def _invoke_scraper_async() -> None:

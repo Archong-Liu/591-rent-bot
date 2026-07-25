@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import functools
 import os
 
 import boto3
 
-from app._lazy import lazy
-
-_get_client = lazy(lambda: boto3.client("ssm"))
 _cache: dict[str, str] = {}
+
+
+@functools.cache
+def _get_client():
+    return boto3.client("ssm")
 
 
 def get_parameter(name: str, with_decryption: bool = True) -> str:

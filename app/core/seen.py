@@ -8,6 +8,7 @@ list_recent() only returns listings confirmed present recently.
 
 from __future__ import annotations
 
+import functools
 import os
 import time
 from decimal import Decimal
@@ -16,7 +17,6 @@ from typing import Any
 import boto3
 from botocore.exceptions import ClientError
 
-from app._lazy import lazy
 from app.core.models import Listing
 
 TABLE_NAME = os.environ.get("SEEN_TABLE", "rent_seen")
@@ -27,7 +27,10 @@ LISTING_TTL_DAYS = int(os.environ.get("LISTING_TTL_DAYS", "7"))
 # /list only shows listings confirmed live within this many days.
 FRESH_WINDOW_DAYS = int(os.environ.get("FRESH_WINDOW_DAYS", "3"))
 
-_get_table = lazy(lambda: boto3.resource("dynamodb").Table(TABLE_NAME))
+
+@functools.cache
+def _get_table():
+    return boto3.resource("dynamodb").Table(TABLE_NAME)
 
 
 def _serialize(value: Any) -> Any:
