@@ -58,7 +58,7 @@ def cmd_start(args: list[str], chat_id: int) -> str:
     prefs = get_prefs(user_id)
     return (
         "👋 哈囉！我是台北 591 租屋通知 bot。\n"
-        "每 4 小時自動掃描符合你篩選的新物件，並推到這裡。\n\n"
+        "每天中午自動掃描符合你篩選的新物件，並推到這裡。\n\n"
         "可用指令:\n"
         "/filters - 看目前條件\n"
         "/set_price <min> <max> - 設租金區間\n"
@@ -182,25 +182,18 @@ def cmd_run(args: list[str], chat_id: int) -> str:
     return "🚀 已觸發掃描（會重新掃描所有已註冊使用者），新物件會陸續推送到這裡。"
 
 
-def cmd_list(args: list[str], chat_id: int) -> str:
-    """Send each listing as its own message, so Telegram renders a link preview for it.
+_SORT_SUMMARY_LABEL = {"price": "｜依價格由低到高排序", "price_desc": "｜依價格由高到低排序"}
 
-    Accepts page and sort in either order, e.g. /list 2 price / /list price 2.
+
+def _send_list_page(user_id: str, chat_id: int, page: int, sort_by: str, token: str) -> str | None:
+    """Send one page of /list results: one message per listing (for URL
+    previews) plus a final summary message carrying the pagination/sort
+    inline keyboard.
+
+    Returns an error string for the caller to send normally (nothing to
+    page through); otherwise sends everything itself and returns None.
     """
-    user_id = str(chat_id)
-    update_prefs({"chat_id": chat_id}, user_id=user_id)
     PAGE_SIZE = 5
-
-    page = 1
-    sort_by = "recent"
-    for arg in args:
-        if arg in SORT_KEYS:
-            sort_by = arg
-            continue
-        try:
-            page = int(arg)
-        except ValueError:
-            return "用法：/list [page] [price|price_desc]"
     page = max(1, page)
     offset = (page - 1) * PAGE_SIZE
 
@@ -212,7 +205,6 @@ def cmd_list(args: list[str], chat_id: int) -> str:
         return f"已沒有第 {page} 頁（總共 {last_page} 頁）。輸入 /list 1 從頭看。"
 
     last_page = (total - 1) // PAGE_SIZE + 1
-    token = get_telegram_token()
 
     # Send one message per listing so each URL gets its own Telegram preview thumbnail.
     for i, item in enumerate(items, start=offset + 1):
@@ -227,13 +219,49 @@ def cmd_list(args: list[str], chat_id: int) -> str:
             logger.warning("/list 推送 item %s 失敗: %s", item.get("listing_id"), e)
         time.sleep(0.4)  # stay under Telegram's 1 msg/s per-chat rate limit
 
-    # Final message: page summary + keyboard (the handler uses this string as the main reply).
-    sort_label = {"price": "｜依價格由低到高排序", "price_desc": "｜依價格由高到低排序"}.get(sort_by, "")
-    sort_suffix = f" {sort_by}" if sort_by != "recent" else ""
-    summary = f"📑 第 {page} / {last_page} 頁（共 {total} 筆）{sort_label}"
-    if page < last_page:
-        summary += f"\n輸入 /list {page + 1}{sort_suffix} 看下一頁"
-    return summary
+    summary = f"📑 第 {page} / {last_page} 頁（共 {total} 筆）{_SORT_SUMMARY_LABEL.get(sort_by, '')}"
+    telegram.send_message(
+        token,
+        chat_id,
+        summary,
+        parse_mode=None,
+        reply_markup=telegram.build_list_keyboard(page, last_page, sort_by),
+    )
+    return None
+
+
+def cmd_list(args: list[str], chat_id: int) -> str | None:
+    """Parse /list's args (page and sort, either order, e.g. /list 2 price)
+    and delegate to _send_list_page.
+    """
+    user_id = str(chat_id)
+    update_prefs({"chat_id": chat_id}, user_id=user_id)
+
+    page, sort_by = 1, "recent"
+    for arg in args:
+        if arg in SORT_KEYS:
+            sort_by = arg
+            continue
+        try:
+            page = int(arg)
+        except ValueError:
+            return "用法：/list [page] [price|price_desc]"
+
+    return _send_list_page(user_id, chat_id, page, sort_by, get_telegram_token())
+
+
+def handle_list_callback(chat_id: int, data: str, token: str) -> None:
+    """Handle a tap on /list's inline keyboard. data is "list:{page}:{sort_by}"."""
+    try:
+        _, page_str, sort_by = data.split(":", 2)
+        page = int(page_str)
+    except ValueError:
+        logger.warning("無法解析 /list callback_data: %s", data)
+        return
+    if sort_by not in SORT_KEYS:
+        logger.warning("/list callback_data 帶未知 sort_by: %s", data)
+        return
+    _send_list_page(str(chat_id), chat_id, page, sort_by, token)
 
 
 def cmd_reset(args: list[str], chat_id: int) -> str:
@@ -246,7 +274,7 @@ def cmd_reset(args: list[str], chat_id: int) -> str:
     )
 
 
-COMMANDS: dict[str, Callable[[list[str], int], str]] = {
+COMMANDS: dict[str, Callable[[list[str], int], str | None]] = {
     "/start": cmd_start,
     "/help": cmd_start,
     "/filters": cmd_filters,
@@ -279,6 +307,24 @@ def handler(event, context):  # noqa: ARG001
         logger.warning("非 JSON body")
         return {"statusCode": 200, "body": "ok"}
 
+    # Inline-keyboard button press (e.g. /list's pagination/sort buttons),
+    # a distinct Telegram update type from a regular text message.
+    callback_query = update.get("callback_query")
+    if callback_query:
+        token = get_telegram_token()
+        data = callback_query.get("data", "")
+        chat_id = callback_query["message"]["chat"]["id"]
+        try:
+            if data.startswith("list:"):
+                handle_list_callback(chat_id, data, token)
+        except Exception:  # noqa: BLE001
+            logger.exception("callback_query 處理失敗: %s", data)
+        try:
+            telegram.answer_callback_query(token, callback_query["id"])
+        except Exception as e:  # noqa: BLE001
+            logger.exception("answerCallbackQuery 失敗：%s", e)
+        return {"statusCode": 200, "body": "ok"}
+
     message = update.get("message") or update.get("edited_message")
     if not message:
         return {"statusCode": 200, "body": "ok"}
@@ -306,16 +352,19 @@ def handler(event, context):  # noqa: ARG001
                 logger.exception("指令 %s 處理失敗", cmd)
                 reply = f"❌ 處理失敗：{e}"
 
-    try:
-        token = get_telegram_token()
-        telegram.send_message(
-            token,
-            chat_id,
-            reply,
-            parse_mode=None,
-            reply_markup=telegram.QUICK_KEYBOARD,
-        )
-    except Exception as e:  # noqa: BLE001
-        logger.exception("回覆 Telegram 失敗：%s", e)
+    # reply is None when the handler already sent its own message(s) with a
+    # custom reply_markup (e.g. cmd_list's inline pagination keyboard).
+    if reply is not None:
+        try:
+            token = get_telegram_token()
+            telegram.send_message(
+                token,
+                chat_id,
+                reply,
+                parse_mode=None,
+                reply_markup=telegram.QUICK_KEYBOARD,
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.exception("回覆 Telegram 失敗：%s", e)
 
     return {"statusCode": 200, "body": "ok"}

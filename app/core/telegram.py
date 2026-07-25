@@ -68,6 +68,45 @@ BUTTON_TO_COMMAND = {
 }
 
 
+def answer_callback_query(token: str, callback_query_id: str, text: str | None = None) -> dict:
+    """Acknowledge an inline-keyboard button press (clears the client's loading spinner)."""
+    payload = {"callback_query_id": callback_query_id}
+    if text:
+        payload["text"] = text
+    resp = requests.post(_bot_url(token, "answerCallbackQuery"), json=payload, timeout=10)
+    resp.raise_for_status()
+    return resp.json()
+
+
+# Sort key -> button label, used both for /list's inline keyboard and its summary text.
+SORT_LABELS = {
+    "recent": "🕒 依時間排序",
+    "price": "💰 價格低到高",
+    "price_desc": "💰 價格高到低",
+}
+
+
+def build_list_keyboard(page: int, last_page: int, sort_by: str) -> dict:
+    """Inline keyboard attached to a /list summary message: prev/next page plus
+    the sort options other than the one currently active. callback_data is
+    "list:{page}:{sort_by}", parsed by the webhook's callback_query handler.
+    """
+    nav_row = []
+    if page > 1:
+        nav_row.append({"text": "◀️ 上一頁", "callback_data": f"list:{page - 1}:{sort_by}"})
+    if page < last_page:
+        nav_row.append({"text": "▶️ 下一頁", "callback_data": f"list:{page + 1}:{sort_by}"})
+
+    # Switching sort resets to page 1 -- page numbers aren't comparable across sort orders.
+    sort_row = [
+        {"text": label, "callback_data": f"list:1:{key}"}
+        for key, label in SORT_LABELS.items()
+        if key != sort_by
+    ]
+
+    return {"inline_keyboard": [row for row in (nav_row, sort_row) if row]}
+
+
 def format_digest(items: list[Listing]) -> str:
     """Combine several listings into one compact Markdown message (one line each)."""
     lines = [f"🆕 *{len(items)} 筆新物件*", ""]
