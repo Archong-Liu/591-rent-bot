@@ -1,6 +1,6 @@
 # 591 台北租屋雲端推播
 
-每 4 小時自動爬 591 台北租屋、依個人偏好過濾、把新物件透過 Telegram bot 推播。
+每天中午自動爬一次 591 台北租屋、依個人偏好過濾、把新物件透過 Telegram bot 推播。
 可在 Telegram 內直接設定篩選條件。支援多使用者：任何人對 bot 送 `/start`
 就會有自己獨立的篩選條件、去重狀態與推播。
 
@@ -9,7 +9,7 @@
 ## 架構
 
 ```
-EventBridge Scheduler ─every 4h─▶ Scraper Lambda (container/Playwright)
+EventBridge Scheduler ─每天中午 (Asia/Taipei)─▶ Scraper Lambda (container/Playwright)
                                        │  逐一處理每個已註冊使用者
                                        ├─reads─▶ DynamoDB: rent_prefs（每個 chat_id 一筆）
                                        ├─writes─▶ DynamoDB: rent_seen（key 為 (user_id, listing_id)，liveness-refreshed TTL）
@@ -25,10 +25,12 @@ Webhook Lambda (Function URL) ◀──/commands── Telegram Bot
 
 使用者是在同一次 Scraper Lambda 呼叫內依序處理的，而每種不同的篩選組合
 都需要各自跑一次真正的（且有意放慢速度避開反爬的）Chromium 爬取。這讓
-每個 4 小時週期大概只能處理 10-15 種不同篩選組合，就會撞到 Lambda 5
-分鐘的 timeout——這是爬蟲耗時造成的上限，不是 AWS 帳單額度的問題。目前
-篩選條件完全相同的使用者仍會各自觸發一次獨立爬取；把「相同篩選只爬一次」
-的邏輯做出來可以再拉高這個上限（同時降低 591 反爬風險），但目前還沒做。
+每次掃描週期（每天一次）大概只能處理 10-15 種不同篩選組合，就會撞到
+Lambda 5 分鐘的 timeout——這是爬蟲耗時造成的上限，不是 AWS 帳單額度的
+問題。目前篩選條件完全相同的使用者仍會各自觸發一次獨立爬取；把「相同
+篩選只爬一次」的邏輯做出來可以再拉高這個上限（同時降低 591 反爬風險），
+但目前還沒做。從每 4 小時改成每天一次，本身就已經讓對 591 的請求量減少
+6 倍，對降低反爬風險也有實質幫助。
 
 ## 本機跑
 
@@ -100,10 +102,11 @@ python3 scrape_cli.py --url "https://rent.591.com.tw/list?region=1&section=3,5&r
 ## 物件保留與時效性
 
 - `mark_seen()` 每次掃描到物件（不論新舊）都會刷新其 `last_seen_at` 與 TTL，持續在架的物件不會過期。
-- 物件從 591 下架後，會在 `LISTING_TTL_DAYS`（預設 7 天）後被 DynamoDB TTL 自動刪除。
-- `/list` 只顯示 `FRESH_WINDOW_DAYS`（預設 3 天）內仍確認在架的物件，避免看到已經租掉/下架的舊資料。
+- 物件從 591 下架後，會在 `LISTING_TTL_DAYS`（預設 7 天）後被 DynamoDB TTL 自動刪除。這是「大概一週沒再出現就當作已租掉/下架」的現實假設，跟掃描頻率無關，所以改成每天掃一次也不需要跟著調整。
+- `/list` 只顯示 `FRESH_WINDOW_DAYS`（預設 2 天，因為改成每天掃一次）內仍確認在架的物件，避免看到已經租掉/下架的舊資料——2 天可以容忍剛好一次掃描失敗（例如 591 反爬回 419），還不會把仍在架的物件誤判為過期。
 - 兩個天數都可透過 Terraform 變數（`listing_ttl_days` / `fresh_window_days`）調整，不需改 code。
-- 限制：存活刷新只發生在有掃描到的分頁（`MAX_PAGES`）內，若篩選條件很寬、物件落在掃描範圍外，可能提早被判定過期。目前針對窄範圍篩選沒問題。
+- `NEW_ITEM_CAP`（推送前的筆數上限，超過會改顯示 overflow 通知）從 25 調高到 40：改成每天一次後，單次掃描累積的候選新物件量大概是原本 4 小時一次的 6 倍。
+- 限制：存活刷新只發生在有掃描到的分頁（`MAX_PAGES`，預設 5 頁、每頁 30 筆）內。改成每天一次後，物件有整整 24 小時可能被新物件擠出這個分頁範圍才被下次掃描發現（相較於原本約 4 小時），對物件量大的篩選條件/行政區，漏掉物件的機率會提高。窄範圍篩選目前沒問題；要調高 `MAX_PAGES` 得拿反爬風險和 Lambda timeout 內能處理的使用者數（見上）來換，所以先當作「發現有漏掉再調」的旋鈕，不建議預先調高。
 - 去重是依使用者區分的（`rent_seen` 的 key 是 `(user_id, listing_id)`），所以同一筆物件對篩選條件不同的多個使用者可以各自獨立判定為「新物件」。
 
 ## 變更篩選的 section ID（萬一 591 改了）
@@ -117,7 +120,9 @@ python3 scripts/refresh_sections.py
 
 ## 修改排程頻率
 
-編輯 `infra/variables.tf` 內 `scraper_schedule_expression`，再跑：
+預設是每天中午（`cron(0 12 * * ? *)`，時區 `Asia/Taipei`）。編輯
+`infra/variables.tf` 內 `scraper_schedule_expression`（EventBridge
+Scheduler 的 `rate(...)` 或 `cron(...)` 表達式），再跑：
 
 ```bash
 cd infra && terraform apply

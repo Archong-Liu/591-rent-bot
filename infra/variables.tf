@@ -11,9 +11,9 @@ variable "scraper_image_tag" {
 }
 
 variable "scraper_schedule_expression" {
-  description = "EventBridge Scheduler schedule; defaults to every 4 hours"
+  description = "EventBridge Scheduler schedule; defaults to once a day at noon (Asia/Taipei, set via schedule_expression_timezone in eventbridge.tf)"
   type        = string
-  default     = "rate(4 hours)"
+  default     = "cron(0 12 * * ? *)"
 }
 
 variable "scraper_max_pages" {
@@ -29,7 +29,7 @@ variable "listing_ttl_days" {
 }
 
 variable "fresh_window_days" {
-  description = "/list only shows listings confirmed live within this many days"
+  description = "/list only shows listings confirmed live within this many days. With a once-daily scan, 2 tolerates exactly one missed/failed scan (e.g. an anti-bot 419) before a still-live listing would be treated as stale"
   type        = number
-  default     = 3
+  default     = 2
 }

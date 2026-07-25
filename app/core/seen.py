@@ -34,8 +34,10 @@ TABLE_NAME = os.environ.get("SEEN_TABLE", "rent_seen")
 # Days after a listing *disappears* before it's deleted from the table
 # (listings still live get their TTL refreshed on every scan, so they never hit this).
 LISTING_TTL_DAYS = int(os.environ.get("LISTING_TTL_DAYS", "7"))
-# /list only shows listings confirmed live within this many days.
-FRESH_WINDOW_DAYS = int(os.environ.get("FRESH_WINDOW_DAYS", "3"))
+# /list only shows listings confirmed live within this many days. With a
+# once-daily scan, 2 tolerates exactly one missed/failed scan before a
+# still-live listing would be treated as stale.
+FRESH_WINDOW_DAYS = int(os.environ.get("FRESH_WINDOW_DAYS", "2"))
 
 
 @functools.cache

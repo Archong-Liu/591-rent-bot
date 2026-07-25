@@ -27,7 +27,10 @@ logger.setLevel(logging.INFO)
 
 MAX_PAGES = int(os.environ.get("MAX_PAGES", "5"))
 DIGEST_BATCH = 5      # listings packed into each digest message
-NEW_ITEM_CAP = 25     # max listings pushed per scan; excess shown as an overflow notice
+# Max listings pushed per scan; excess shown as an overflow notice. A once-daily
+# scan accumulates roughly 6x the candidate listings a 4-hourly scan would have
+# seen per run, so this is raised from the old 25 to match.
+NEW_ITEM_CAP = 40
 
 
 def _chunks(seq, n):
