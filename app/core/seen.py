@@ -124,24 +124,53 @@ def _seen_ts(item: Listing) -> int:
     return int(item.get("last_seen_at") or item.get("first_seen_at") or 0)
 
 
+def _price_value(item: Listing) -> int | None:
+    """Parse the listing's price string; None for missing/non-numeric (e.g. "面議")."""
+    try:
+        return int(item.get("price") or "")
+    except (ValueError, TypeError):
+        return None
+
+
+SORT_KEYS = ("recent", "price", "price_desc")
+
+
+def _sort_items(items: list[Listing], sort_by: str) -> list[Listing]:
+    if sort_by == "price" or sort_by == "price_desc":
+        descending = sort_by == "price_desc"
+
+        def key(item: Listing):
+            price = _price_value(item)
+            # Unknown price always sorts last, regardless of direction.
+            if price is None:
+                return (1, 0)
+            return (0, -price if descending else price)
+
+        return sorted(items, key=key)
+    return sorted(items, key=_seen_ts, reverse=True)
+
+
 def list_recent(
     user_id: str,
     offset: int = 0,
     limit: int = 5,
     fresh_within_days: int = FRESH_WINDOW_DAYS,
+    sort_by: str = "recent",
 ) -> tuple[list[Listing], int]:
     """Return (this page's items, total count matching the freshness filter)
     for one user.
 
-    Only keeps listings confirmed live within the last fresh_within_days days,
-    sorted by last_seen_at descending.
-    fresh_within_days <= 0 disables the filter (shows everything).
+    Only keeps listings confirmed live within the last fresh_within_days days.
+    sort_by is one of SORT_KEYS: "recent" (default, last_seen_at descending),
+    "price" (cheapest first), or "price_desc" (most expensive first); listings
+    with an unparseable price (e.g. "面議") always sort last.
+    fresh_within_days <= 0 disables the freshness filter (shows everything).
     """
     all_items = _query_user(user_id)
     if fresh_within_days > 0:
         cutoff = int(time.time()) - fresh_within_days * 86400
         all_items = [x for x in all_items if _seen_ts(x) >= cutoff]
-    all_items.sort(key=_seen_ts, reverse=True)
+    all_items = _sort_items(all_items, sort_by)
     return all_items[offset:offset + limit], len(all_items)
 
 

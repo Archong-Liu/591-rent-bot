@@ -24,7 +24,7 @@ from app.core.filters import (
     normalize_kind,
 )
 from app.core.prefs import clear_filters, get_prefs, update_prefs
-from app.core.seen import clear_seen, list_recent
+from app.core.seen import SORT_KEYS, clear_seen, list_recent
 from app.ssm import get_telegram_token
 
 logger = logging.getLogger()
@@ -70,7 +70,7 @@ def cmd_start(args: list[str], chat_id: int) -> str:
         "/pause | /resume - 暫停/恢復通知\n"
         "/run - 立即觸發一次掃描\n"
         "/reset - 清空 dedup 重新建立基準\n"
-        "/list [page] - 翻頁看已抓到的物件（5 筆/頁）\n\n"
+        "/list [page] [price|price_desc] - 翻頁看已抓到的物件（5 筆/頁），可依價格排序\n\n"
         f"{describe_prefs(prefs)}"
     )
 
@@ -183,18 +183,28 @@ def cmd_run(args: list[str], chat_id: int) -> str:
 
 
 def cmd_list(args: list[str], chat_id: int) -> str:
-    """Send each listing as its own message, so Telegram renders a link preview for it."""
+    """Send each listing as its own message, so Telegram renders a link preview for it.
+
+    Accepts page and sort in either order, e.g. /list 2 price / /list price 2.
+    """
     user_id = str(chat_id)
     update_prefs({"chat_id": chat_id}, user_id=user_id)
     PAGE_SIZE = 5
-    try:
-        page = int(args[0]) if args else 1
-    except ValueError:
-        page = 1
+
+    page = 1
+    sort_by = "recent"
+    for arg in args:
+        if arg in SORT_KEYS:
+            sort_by = arg
+            continue
+        try:
+            page = int(arg)
+        except ValueError:
+            return "用法：/list [page] [price|price_desc]"
     page = max(1, page)
     offset = (page - 1) * PAGE_SIZE
 
-    items, total = list_recent(user_id, offset=offset, limit=PAGE_SIZE)
+    items, total = list_recent(user_id, offset=offset, limit=PAGE_SIZE, sort_by=sort_by)
     if total == 0:
         return "目前 dedup 表沒有任何資料，按 🚀 立刻掃 開始記錄。"
     if not items:
@@ -218,9 +228,11 @@ def cmd_list(args: list[str], chat_id: int) -> str:
         time.sleep(0.4)  # stay under Telegram's 1 msg/s per-chat rate limit
 
     # Final message: page summary + keyboard (the handler uses this string as the main reply).
-    summary = f"📑 第 {page} / {last_page} 頁（共 {total} 筆）"
+    sort_label = {"price": "｜依價格由低到高排序", "price_desc": "｜依價格由高到低排序"}.get(sort_by, "")
+    sort_suffix = f" {sort_by}" if sort_by != "recent" else ""
+    summary = f"📑 第 {page} / {last_page} 頁（共 {total} 筆）{sort_label}"
     if page < last_page:
-        summary += f"\n輸入 /list {page + 1} 看下一頁"
+        summary += f"\n輸入 /list {page + 1}{sort_suffix} 看下一頁"
     return summary
 
 
