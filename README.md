@@ -32,8 +32,8 @@ this is a scraping-time limit, not an AWS billing one. Users who happen to
 share identical filters currently still each trigger their own separate
 scrape; deduplicating scrapes by filter combination would raise this
 ceiling further (and reduce 591 anti-bot exposure) but isn't implemented
-yet. Moving from every-4-hours to once-daily already cuts total requests
-to 591 by 6x, which meaningfully reduces anti-bot exposure on its own.
+yet. Scanning once a day (rather than more frequently) also keeps total
+requests to 591 low, which helps limit anti-bot exposure on its own.
 
 ## Run locally
 
@@ -111,27 +111,26 @@ the same slash commands.
 - Once a listing disappears from 591, it's auto-deleted via DynamoDB TTL
   `LISTING_TTL_DAYS` (default 7) after its last sighting. This is a
   real-world "assume it's rented/delisted after about a week of not
-  reappearing" judgment call, not tied to scan frequency, so it didn't need
-  to change when the schedule moved to once-daily.
+  reappearing" judgment call, independent of scan frequency.
 - `/list` only shows listings confirmed present within `FRESH_WINDOW_DAYS`
-  (default 2, since the schedule moved to once-daily — this tolerates
-  exactly one missed/failed scan, e.g. a 591 anti-bot 419, before a
-  still-live listing would incorrectly drop out of `/list`).
+  (default 2) — this tolerates exactly one missed/failed scan (e.g. a 591
+  anti-bot 419) before a still-live listing would incorrectly drop out of
+  `/list`.
 - Both windows are tunable via Terraform variables (`listing_ttl_days` /
   `fresh_window_days`) without code changes.
-- `NEW_ITEM_CAP` (max listings pushed before an overflow notice) was raised
-  from 25 to 40: a once-daily scan accumulates roughly 6x the candidate new
-  listings a 4-hourly scan would have seen per run.
+- `NEW_ITEM_CAP` (40) caps how many listings get pushed before switching to
+  an overflow notice; kept generous since a once-a-day scan cadence lets
+  more candidate new listings accumulate between runs than a more frequent
+  cadence would.
 - Caveat: liveness refresh only happens for listings within the scanned
-  page range (`MAX_PAGES`, default 5 pages/30 listings each). A once-daily
-  scan gives listings a full 24h to get pushed past that page range by
-  newer postings before the next scan catches them (vs. ~4h before), which
-  raises the chance of missing a listing entirely for high-volume
-  filters/districts. Fine for narrow per-user filters; raising `MAX_PAGES`
-  trades this off against more anti-bot exposure and more per-user
-  scraping time within the Lambda timeout (see above), so treat it as a
-  "watch and tune if you notice gaps" knob rather than a default to bump
-  preemptively.
+  page range (`MAX_PAGES`, default 5 pages/30 listings each). A once-a-day
+  scan gives listings up to 24h to get pushed past that page range by newer
+  postings before the next scan catches them, which raises the chance of
+  missing a listing entirely for high-volume filters/districts. Fine for
+  narrow per-user filters; raising `MAX_PAGES` trades this off against more
+  anti-bot exposure and more per-user scraping time within the Lambda
+  timeout (see above), so treat it as a "watch and tune if you notice gaps"
+  knob rather than a default to bump preemptively.
 - Dedup is scoped per user (`rent_seen`'s key is `(user_id, listing_id)`),
   so the same listing can independently be "new" to multiple users with
   different filters.
@@ -188,4 +187,4 @@ Dockerfile                   # Scraper Lambda image
 - For multi-device deployment or shared use, switch to an S3 backend —
   local state doesn't support that.
 - 591's anti-bot occasionally returns 419/429; the current strategy is a
-  graceful return without retry (tries again in 4 hours).
+  graceful return without retry (tries again on the next scheduled scan).
