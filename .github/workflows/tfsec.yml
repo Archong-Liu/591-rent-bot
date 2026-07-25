@@ -1,0 +1,38 @@
+name: tfsec
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/tfsec.yml'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'infra/**'
+  schedule:
+    - cron: '0 2 * * 0' # weekly, Sunday 02:00 UTC
+
+jobs:
+  tfsec:
+    name: tfsec (infra/)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-sarif-action@v0.1.4
+        with:
+          working_directory: infra
+          sarif_file: tfsec.sarif
+
+      - name: Upload SARIF to code scanning
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: tfsec.sarif
