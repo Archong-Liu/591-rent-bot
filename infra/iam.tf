@@ -27,17 +27,16 @@ resource "aws_iam_role_policy" "scraper_inline" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:GetItem",
-          "dynamodb:PutItem",
-          "dynamodb:UpdateItem",
-          "dynamodb:Query",
-        ]
-        Resource = [
-          aws_dynamodb_table.prefs.arn,
-          aws_dynamodb_table.seen.arn,
-        ]
+        # list_all_prefs() scans every registered user; update_prefs() bumps last_scan_at.
+        Effect   = "Allow"
+        Action   = ["dynamodb:Scan", "dynamodb:UpdateItem"]
+        Resource = aws_dynamodb_table.prefs.arn
+      },
+      {
+        # mark_seen() put_item's on first sighting, update_item's to refresh liveness.
+        Effect   = "Allow"
+        Action   = ["dynamodb:PutItem", "dynamodb:UpdateItem"]
+        Resource = aws_dynamodb_table.seen.arn
       },
       {
         Effect   = "Allow"
@@ -77,21 +76,18 @@ resource "aws_iam_role_policy" "webhook_inline" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:GetItem",
-          "dynamodb:PutItem",
-          "dynamodb:UpdateItem",
-        ]
+        # get_prefs() reads; update_prefs()/clear_filters() write every /set_*,
+        # /clear, /pause, /resume, /reset, /list, /run, /start command.
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
         Resource = aws_dynamodb_table.prefs.arn
       },
       {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:Scan",
-          "dynamodb:DeleteItem",
-          "dynamodb:BatchWriteItem",
-        ]
+        # list_recent() (/list) and clear_seen() (/reset) query the requesting
+        # user's own rows; clear_seen()'s deletes go through batch_writer(),
+        # which uses BatchWriteItem rather than individual DeleteItem calls.
+        Effect   = "Allow"
+        Action   = ["dynamodb:Query", "dynamodb:BatchWriteItem"]
         Resource = aws_dynamodb_table.seen.arn
       },
       {
