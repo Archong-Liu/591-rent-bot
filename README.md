@@ -31,10 +31,10 @@ pip install -r requirements.txt
 python3 -m playwright install chromium
 
 # Scrape 1 page, save to CSV
-python3 scraper.py --max-pages 1
+python3 scrape_cli.py --max-pages 1
 
 # Scrape with a filter URL
-python3 scraper.py --url "https://rent.591.com.tw/list?region=1&section=3,5&rentprice=15000,30000" --max-pages 2
+python3 scrape_cli.py --url "https://rent.591.com.tw/list?region=1&section=3,5&rentprice=15000,30000" --max-pages 2
 ```
 
 ## Cloud deployment
@@ -139,7 +139,7 @@ app/
 
 infra/                       # Terraform
 scripts/                     # Deploy / ops scripts
-scraper.py                   # Local CLI entry point
+scrape_cli.py                # Local CLI entry point
 Dockerfile                   # Scraper Lambda image
 ```
 

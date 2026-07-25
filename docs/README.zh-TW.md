@@ -30,10 +30,10 @@ pip install -r requirements.txt
 python3 -m playwright install chromium
 
 # 抓 1 頁存 CSV
-python3 scraper.py --max-pages 1
+python3 scrape_cli.py --max-pages 1
 
 # 帶 filter 抓
-python3 scraper.py --url "https://rent.591.com.tw/list?region=1&section=3,5&rentprice=15000,30000" --max-pages 2
+python3 scrape_cli.py --url "https://rent.591.com.tw/list?region=1&section=3,5&rentprice=15000,30000" --max-pages 2
 ```
 
 ## 雲端部署
@@ -129,7 +129,7 @@ app/
 
 infra/                       # Terraform
 scripts/                     # 部署 / 維運腳本
-scraper.py                   # 本機 CLI 入口
+scrape_cli.py                # 本機 CLI 入口
 Dockerfile                   # Scraper Lambda image
 ```
 
