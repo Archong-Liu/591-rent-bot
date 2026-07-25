@@ -1,4 +1,10 @@
-"""rent_prefs DynamoDB CRUD (single-user; user_id is hardcoded to "default")."""
+"""rent_prefs DynamoDB CRUD, one row per Telegram chat.
+
+user_id is the stringified Telegram chat_id. DEFAULT_USER_ID only exists
+as the legacy key from before multi-user support (see
+scripts/migrate_default_user.py) and as a convenience default for local
+testing -- both Lambdas always pass an explicit user_id.
+"""
 
 from __future__ import annotations
 
@@ -97,6 +103,24 @@ def update_prefs(updates: dict, user_id: str = DEFAULT_USER_ID) -> dict:
     return _from_ddb(resp.get("Attributes"))
 
 
+def list_all_prefs() -> list[dict]:
+    """Return every registered user's prefs row.
+
+    rent_prefs only ever has one row per registered user (not per listing),
+    so a full-table scan stays cheap regardless of how the seen-table
+    query cost scales.
+    """
+    table = _get_table()
+    items: list[dict] = []
+    kwargs: dict = {}
+    while True:
+        resp = table.scan(**kwargs)
+        items.extend(_from_ddb(item) for item in resp.get("Items", []))
+        if "LastEvaluatedKey" not in resp:
+            return items
+        kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
+
+
 def clear_filters(user_id: str = DEFAULT_USER_ID) -> dict:
     """Clear all filter fields, keeping chat_id and enabled intact."""
     return update_prefs(
@@ -111,3 +135,8 @@ def clear_filters(user_id: str = DEFAULT_USER_ID) -> dict:
         },
         user_id=user_id,
     )
+
+
+def delete_prefs(user_id: str) -> None:
+    """Delete a user's prefs row outright (not a filter clear -- the row itself is gone)."""
+    _get_table().delete_item(Key={"user_id": user_id})

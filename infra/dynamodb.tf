@@ -14,7 +14,13 @@ resource "aws_dynamodb_table" "prefs" {
 resource "aws_dynamodb_table" "seen" {
   name         = "${local.project}-seen"
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "listing_id"
+  hash_key     = "user_id"
+  range_key    = "listing_id"
+
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
 
   attribute {
     name = "listing_id"

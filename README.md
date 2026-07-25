@@ -2,7 +2,8 @@
 
 Scrapes 591 (Taipei rentals) every 4 hours, filters listings by personal
 preferences, and pushes new matches via a Telegram bot. Filters can be
-configured directly from within Telegram.
+configured directly from within Telegram. Multi-user: anyone who `/start`s
+the bot gets their own independent filters, dedup state, and notifications.
 
 [繁體中文 README](docs/README.zh-TW.md)
 
@@ -10,18 +11,27 @@ configured directly from within Telegram.
 
 ```
 EventBridge Scheduler ─every 4h─▶ Scraper Lambda (container/Playwright)
-                                       │
-                                       ├─reads─▶ DynamoDB: rent_prefs
-                                       ├─writes─▶ DynamoDB: rent_seen (liveness-refreshed TTL)
-                                       └─sends─▶ Telegram Bot API
+                                       │  loops over every registered user
+                                       ├─reads─▶ DynamoDB: rent_prefs (1 row/chat_id)
+                                       ├─writes─▶ DynamoDB: rent_seen ((user_id, listing_id) key, liveness-refreshed TTL)
+                                       └─sends─▶ Telegram Bot API (per user's own chat_id)
                                                        ▲
                                                        │
 Webhook Lambda (Function URL) ◀──/commands── Telegram Bot
        │
-       └─writes prefs─▶ DynamoDB: rent_prefs
+       └─writes prefs─▶ DynamoDB: rent_prefs (scoped to the sending chat_id)
 ```
 
 Deployed on AWS Tokyo (`ap-northeast-1`). Estimated cost < $0.50 USD/month.
+
+Users are processed sequentially in one Scraper Lambda invocation, and each
+distinct filter combination needs its own real (anti-bot-paced) Chromium
+scrape. That puts a practical ceiling of roughly 10-15 distinct filter
+setups per 4-hour cycle before the Lambda's 5-minute timeout — this is a
+scraping-time limit, not an AWS billing one. Users who happen to share
+identical filters currently still each trigger their own separate scrape;
+deduplicating scrapes by filter combination would raise this ceiling
+further (and reduce 591 anti-bot exposure) but isn't implemented yet.
 
 ## Run locally
 
@@ -104,8 +114,11 @@ the same slash commands.
   `fresh_window_days`) without code changes.
 - Caveat: liveness refresh only happens for listings within the scanned
   page range (`MAX_PAGES`), so a listing still live but outside that range
-  could expire early. Fine for narrow single-user filters; revisit if
+  could expire early. Fine for narrow per-user filters; revisit if
   filters broaden.
+- Dedup is scoped per user (`rent_seen`'s key is `(user_id, listing_id)`),
+  so the same listing can independently be "new" to multiple users with
+  different filters.
 
 ## Changing the district `section` IDs (if 591 changes them)
 
@@ -145,6 +158,13 @@ Dockerfile                   # Scraper Lambda image
 
 ## Notes
 
+- If you deployed this before multi-user support existed, `rent_seen`'s key
+  schema changes (`listing_id` → `(user_id, listing_id)`), which forces
+  Terraform to destroy and recreate that table — wiping dedup history for
+  everyone. After redeploying, run `python3 scripts/migrate_default_user.py`
+  once to move the old single "default" row to its real `chat_id` and reset
+  `last_scan_at`, so the next scan silently re-seeds instead of blasting
+  every currently-live listing as "new".
 - `infra/terraform.tfstate` contains AWS resource details, is
   **gitignored**, and should be backed up separately.
 - For multi-device deployment or shared use, switch to an S3 backend —

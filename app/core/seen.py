@@ -1,9 +1,13 @@
-"""rent_seen DynamoDB dedup + full listing storage + liveness refresh.
+"""rent_seen DynamoDB dedup + full listing storage + liveness refresh, per user.
 
-mark_seen() writes the full item dict the first time a listing is seen;
-every time after that it refreshes last_seen_at and the TTL, giving
+mark_seen() writes the full item dict the first time a (user, listing) pair
+is seen; every time after that it refreshes last_seen_at and the TTL, giving
 listings a "delisted -> auto-expires after N days" retention policy.
 list_recent() only returns listings confirmed present recently.
+
+Table key is (user_id hash, listing_id range): each user's dedup/liveness
+state is independent, and a `Query` scoped to one user_id is far cheaper
+than the full-table `Scan` this used before user accounts existed.
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ from decimal import Decimal
 from typing import Any
 
 import boto3
+from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
 from app.core.models import Listing
@@ -49,9 +54,10 @@ def _serialize(value: Any) -> Any:
     return value
 
 
-def mark_seen(item: Listing, ttl_days: int = LISTING_TTL_DAYS) -> bool:
-    """Return True and store the full item on first sighting; return False
-    (without re-notifying) on subsequent sightings, but still refresh liveness.
+def mark_seen(user_id: str, item: Listing, ttl_days: int = LISTING_TTL_DAYS) -> bool:
+    """Return True and store the full item on first sighting for this user;
+    return False (without re-notifying) on subsequent sightings, but still
+    refresh liveness.
 
     `item` must have an 'id'. The remaining fields (title, price, ...) are
     stored too so /list can display them.
@@ -67,6 +73,7 @@ def mark_seen(item: Listing, ttl_days: int = LISTING_TTL_DAYS) -> bool:
     ttl = now + ttl_days * 86400
 
     record = {
+        "user_id": user_id,
         "listing_id": listing_id,
         "first_seen_at": Decimal(now),
         "last_seen_at": Decimal(now),
@@ -90,7 +97,7 @@ def mark_seen(item: Listing, ttl_days: int = LISTING_TTL_DAYS) -> bool:
             raise
         # Already seen: refresh liveness (last_seen_at + ttl) without re-notifying.
         _get_table().update_item(
-            Key={"listing_id": listing_id},
+            Key={"user_id": user_id, "listing_id": listing_id},
             UpdateExpression="SET last_seen_at = :now, #ttl = :ttl",
             ExpressionAttributeNames={"#ttl": "ttl"},
             ExpressionAttributeValues={":now": Decimal(now), ":ttl": Decimal(ttl)},
@@ -98,12 +105,12 @@ def mark_seen(item: Listing, ttl_days: int = LISTING_TTL_DAYS) -> bool:
         return False
 
 
-def _scan_all() -> list[Listing]:
+def _query_user(user_id: str) -> list[Listing]:
     table = _get_table()
     items: list[Listing] = []
-    kwargs: dict = {}
+    kwargs: dict = {"KeyConditionExpression": Key("user_id").eq(user_id)}
     while True:
-        resp = table.scan(**kwargs)
+        resp = table.query(**kwargs)
         items.extend(resp.get("Items", []))
         if "LastEvaluatedKey" not in resp:
             return items
@@ -116,17 +123,19 @@ def _seen_ts(item: Listing) -> int:
 
 
 def list_recent(
+    user_id: str,
     offset: int = 0,
     limit: int = 5,
     fresh_within_days: int = FRESH_WINDOW_DAYS,
 ) -> tuple[list[Listing], int]:
-    """Return (this page's items, total count matching the freshness filter).
+    """Return (this page's items, total count matching the freshness filter)
+    for one user.
 
     Only keeps listings confirmed live within the last fresh_within_days days,
     sorted by last_seen_at descending.
     fresh_within_days <= 0 disables the filter (shows everything).
     """
-    all_items = _scan_all()
+    all_items = _query_user(user_id)
     if fresh_within_days > 0:
         cutoff = int(time.time()) - fresh_within_days * 86400
         all_items = [x for x in all_items if _seen_ts(x) >= cutoff]
@@ -134,18 +143,21 @@ def list_recent(
     return all_items[offset:offset + limit], len(all_items)
 
 
-def clear_seen() -> int:
-    """Wipe the entire rent_seen table; returns the number of items deleted."""
+def clear_seen(user_id: str) -> int:
+    """Wipe one user's rows from rent_seen; returns the number of items deleted."""
     table = _get_table()
     deleted = 0
-    scan_kwargs = {"ProjectionExpression": "listing_id"}
+    kwargs: dict = {
+        "KeyConditionExpression": Key("user_id").eq(user_id),
+        "ProjectionExpression": "user_id, listing_id",
+    }
     while True:
-        resp = table.scan(**scan_kwargs)
+        resp = table.query(**kwargs)
         with table.batch_writer() as batch:
             for item in resp.get("Items", []):
-                batch.delete_item(Key={"listing_id": item["listing_id"]})
+                batch.delete_item(Key={"user_id": item["user_id"], "listing_id": item["listing_id"]})
                 deleted += 1
         if "LastEvaluatedKey" not in resp:
             break
-        scan_kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
+        kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
     return deleted

@@ -47,11 +47,15 @@ def _invoke_scraper_async() -> None:
 
 
 # -- command handlers -------------------------------------------------------
+# Every handler receives the Telegram chat_id and scopes all prefs/seen
+# access to str(chat_id) as the user_id, so each chat gets independent
+# filters, dedup state, and notifications.
 
 
 def cmd_start(args: list[str], chat_id: int) -> str:
-    update_prefs({"chat_id": chat_id})
-    prefs = get_prefs()
+    user_id = str(chat_id)
+    update_prefs({"chat_id": chat_id}, user_id=user_id)
+    prefs = get_prefs(user_id)
     return (
         "👋 哈囉！我是台北 591 租屋通知 bot。\n"
         "每 4 小時自動掃描符合你篩選的新物件，並推到這裡。\n\n"
@@ -72,7 +76,7 @@ def cmd_start(args: list[str], chat_id: int) -> str:
 
 
 def cmd_filters(args: list[str], chat_id: int) -> str:
-    return describe_prefs(get_prefs())
+    return describe_prefs(get_prefs(str(chat_id)))
 
 
 def cmd_set_price(args: list[str], chat_id: int) -> str:
@@ -82,7 +86,7 @@ def cmd_set_price(args: list[str], chat_id: int) -> str:
         pmin, pmax = int(args[0]), int(args[1])
     except ValueError:
         return "min/max 必須是整數"
-    update_prefs({"price_min": pmin, "price_max": pmax, "chat_id": chat_id})
+    update_prefs({"price_min": pmin, "price_max": pmax, "chat_id": chat_id}, user_id=str(chat_id))
     return f"✅ 已設租金 {pmin} ~ {pmax} 元/月"
 
 
@@ -99,7 +103,7 @@ def cmd_set_district(args: list[str], chat_id: int) -> str:
             unknown.append(name)
     if not ids:
         return f"無法識別任何行政區：{', '.join(unknown)}"
-    update_prefs({"sections": ids, "chat_id": chat_id})
+    update_prefs({"sections": ids, "chat_id": chat_id}, user_id=str(chat_id))
     names = [SECTION_ID_TO_NAME[i] for i in ids]
     msg = f"✅ 已設行政區：{', '.join(names)}"
     if unknown:
@@ -120,7 +124,7 @@ def cmd_set_kind(args: list[str], chat_id: int) -> str:
             unknown.append(name)
     if not codes:
         return f"無法識別任何類型：{', '.join(unknown)}"
-    update_prefs({"kinds": codes, "chat_id": chat_id})
+    update_prefs({"kinds": codes, "chat_id": chat_id}, user_id=str(chat_id))
     names = [KIND_CODE_TO_NAME[c] for c in codes]
     msg = f"✅ 已設類型：{', '.join(names)}"
     if unknown:
@@ -135,7 +139,7 @@ def cmd_set_area(args: list[str], chat_id: int) -> str:
         amin, amax = int(args[0]), int(args[1])
     except ValueError:
         return "min/max 必須是整數"
-    update_prefs({"area_min": amin, "area_max": amax, "chat_id": chat_id})
+    update_prefs({"area_min": amin, "area_max": amax, "chat_id": chat_id}, user_id=str(chat_id))
     return f"✅ 已設坪數 {amin} ~ {amax} 坪"
 
 
@@ -146,40 +150,42 @@ def cmd_set_pattern(args: list[str], chat_id: int) -> str:
         patterns = [int(x) for x in args]
     except ValueError:
         return "格局必須是整數，例如 /set_pattern 1 2"
-    update_prefs({"patterns": patterns, "chat_id": chat_id})
+    update_prefs({"patterns": patterns, "chat_id": chat_id}, user_id=str(chat_id))
     return f"✅ 已設格局：{', '.join(f'{p}房' for p in patterns)}"
 
 
 def cmd_clear(args: list[str], chat_id: int) -> str:
-    update_prefs({"chat_id": chat_id})
-    clear_filters()
+    user_id = str(chat_id)
+    update_prefs({"chat_id": chat_id}, user_id=user_id)
+    clear_filters(user_id=user_id)
     return "✅ 已清除所有篩選條件"
 
 
 def cmd_pause(args: list[str], chat_id: int) -> str:
-    update_prefs({"enabled": False, "chat_id": chat_id})
+    update_prefs({"enabled": False, "chat_id": chat_id}, user_id=str(chat_id))
     return "⏸ 已暫停通知。輸入 /resume 恢復。"
 
 
 def cmd_resume(args: list[str], chat_id: int) -> str:
-    update_prefs({"enabled": True, "chat_id": chat_id})
+    update_prefs({"enabled": True, "chat_id": chat_id}, user_id=str(chat_id))
     return "▶️ 已恢復通知。"
 
 
 def cmd_run(args: list[str], chat_id: int) -> str:
-    update_prefs({"chat_id": chat_id})
+    update_prefs({"chat_id": chat_id}, user_id=str(chat_id))
     if not SCRAPER_FN_NAME:
         return "❌ Scraper Lambda 名稱未設定（環境變數 SCRAPER_FN_NAME）"
     try:
         _invoke_scraper_async()
     except Exception as e:  # noqa: BLE001
         return f"❌ 觸發失敗：{e}"
-    return "🚀 已觸發掃描，新物件會陸續推送到這裡。"
+    return "🚀 已觸發掃描（會重新掃描所有已註冊使用者），新物件會陸續推送到這裡。"
 
 
 def cmd_list(args: list[str], chat_id: int) -> str:
     """Send each listing as its own message, so Telegram renders a link preview for it."""
-    update_prefs({"chat_id": chat_id})
+    user_id = str(chat_id)
+    update_prefs({"chat_id": chat_id}, user_id=user_id)
     PAGE_SIZE = 5
     try:
         page = int(args[0]) if args else 1
@@ -188,7 +194,7 @@ def cmd_list(args: list[str], chat_id: int) -> str:
     page = max(1, page)
     offset = (page - 1) * PAGE_SIZE
 
-    items, total = list_recent(offset=offset, limit=PAGE_SIZE)
+    items, total = list_recent(user_id, offset=offset, limit=PAGE_SIZE)
     if total == 0:
         return "目前 dedup 表沒有任何資料，按 🚀 立刻掃 開始記錄。"
     if not items:
@@ -219,8 +225,9 @@ def cmd_list(args: list[str], chat_id: int) -> str:
 
 
 def cmd_reset(args: list[str], chat_id: int) -> str:
-    update_prefs({"chat_id": chat_id, "last_scan_at": None})
-    n = clear_seen()
+    user_id = str(chat_id)
+    update_prefs({"chat_id": chat_id, "last_scan_at": None}, user_id=user_id)
+    n = clear_seen(user_id)
     return (
         f"♻️ 已清除 {n} 筆 dedup 紀錄，下次掃描會重新建立基準資料。\n"
         "（不會推送 listings，只送一則「已建立基準資料」）"
