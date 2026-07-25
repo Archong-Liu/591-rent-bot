@@ -93,8 +93,8 @@ python3 scrape_cli.py --url "https://rent.591.com.tw/list?region=1&section=3,5&r
 | `/set_pattern 1 2` | 設房數 |
 | `/clear` | 清除所有篩選 |
 | `/pause` ・ `/resume` | 暫停／恢復推播 |
-| `/run` | 立即觸發一次掃描（測試用） |
-| `/reset` | 清空 dedup 紀錄，下次掃描重新靜默建立基準 |
+| `/run` | 立即觸發一次掃描（測試用，可能需要幾分鐘） |
+| `/reset` | 清空你的 dedup 紀錄，下次掃描重新靜默建立基準 |
 | `/list [page] [price\|price_desc]` | 翻頁瀏覽最近仍在架的物件（5 筆/頁），顯示「最後確認」時間。預設依最近確認時間排序；`price`/`price_desc` 依租金排序（無法解析的價格，例如「面議」，一律排最後）。page 跟 sort 順序不拘，例如 `/list price 2`。摘要訊息下方會附上翻頁／切換排序的按鈕，不用重打指令 |
 
 也可以用聊天視窗下方的常用按鈕（看條件／看清單／立刻掃／暫停／恢復／清除條件／重新建立基準），效果等同對應的 slash command。

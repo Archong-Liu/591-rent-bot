@@ -97,7 +97,7 @@ Once done, send `/start` to your bot on Telegram — you should get a welcome me
 | `/clear` | Clear all filters |
 | `/pause` / `/resume` | Pause/resume notifications |
 | `/run` | Trigger a scan immediately (for testing) |
-| `/reset` | Wipe the dedup table so the next scan re-seeds silently |
+| `/reset` | Wipe your dedup history so your next scan re-seeds silently |
 | `/list [page] [price\|price_desc]` | Page through currently-live listings (5 per page), showing "last confirmed" time. Default sort is most-recently-reconfirmed first; `price`/`price_desc` sort by rent (unparseable prices, e.g. "面議", always sort last). Page and sort can be given in either order, e.g. `/list price 2`. The summary message also carries an inline keyboard (prev/next page, switch sort) so paging doesn't require retyping the command |
 
 The chat's reply keyboard also exposes shortcut buttons (filters / list /

@@ -68,8 +68,8 @@ def cmd_start(args: list[str], chat_id: int) -> str:
         "/set_pattern <n>... - 設房數\n"
         "/clear - 清除所有篩選\n"
         "/pause | /resume - 暫停/恢復通知\n"
-        "/run - 立即觸發一次掃描\n"
-        "/reset - 清空 dedup 重新建立基準\n"
+        "/run - 立即觸發一次掃描（可能需要幾分鐘）\n"
+        "/reset - 清空記錄重新建立基準\n"
         "/list [page] [price|price_desc] - 翻頁看已抓到的物件（5 筆/頁），可依價格排序\n\n"
         f"{describe_prefs(prefs)}"
     )
@@ -177,9 +177,10 @@ def cmd_run(args: list[str], chat_id: int) -> str:
         return "❌ Scraper Lambda 名稱未設定（環境變數 SCRAPER_FN_NAME）"
     try:
         _invoke_scraper_async()
-    except Exception as e:  # noqa: BLE001
-        return f"❌ 觸發失敗：{e}"
-    return "🚀 已觸發掃描（會重新掃描所有已註冊使用者），新物件會陸續推送到這裡。"
+    except Exception:  # noqa: BLE001
+        logger.exception("觸發掃描失敗")
+        return "❌ 觸發失敗，請稍後再試。"
+    return "🚀 已觸發掃描，可能需要幾分鐘，新物件會陸續推送到這裡。"
 
 
 _SORT_SUMMARY_LABEL = {"price": "｜依價格由低到高排序", "price_desc": "｜依價格由高到低排序"}
@@ -199,7 +200,7 @@ def _send_list_page(user_id: str, chat_id: int, page: int, sort_by: str, token: 
 
     items, total = list_recent(user_id, offset=offset, limit=PAGE_SIZE, sort_by=sort_by)
     if total == 0:
-        return "目前 dedup 表沒有任何資料，按 🚀 立刻掃 開始記錄。"
+        return "目前還沒有任何已記錄的物件，按 🚀 立刻掃 開始記錄。"
     if not items:
         last_page = (total - 1) // PAGE_SIZE + 1
         return f"已沒有第 {page} 頁（總共 {last_page} 頁）。輸入 /list 1 從頭看。"
@@ -269,8 +270,8 @@ def cmd_reset(args: list[str], chat_id: int) -> str:
     update_prefs({"chat_id": chat_id, "last_scan_at": None}, user_id=user_id)
     n = clear_seen(user_id)
     return (
-        f"♻️ 已清除 {n} 筆 dedup 紀錄，下次掃描會重新建立基準資料。\n"
-        "（不會推送 listings，只送一則「已建立基準資料」）"
+        f"♻️ 已清除 {n} 筆記錄，下次掃描會重新建立基準資料。\n"
+        "（不會逐筆推送物件，只送一則「已建立基準資料」的訊息）"
     )
 
 
@@ -348,9 +349,9 @@ def handler(event, context):  # noqa: ARG001
         else:
             try:
                 reply = handler_fn(args, chat_id)
-            except Exception as e:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 logger.exception("指令 %s 處理失敗", cmd)
-                reply = f"❌ 處理失敗：{e}"
+                reply = "❌ 處理時發生錯誤，請稍後再試。"
 
     # reply is None when the handler already sent its own message(s) with a
     # custom reply_markup (e.g. cmd_list's inline pagination keyboard).
