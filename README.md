@@ -1,15 +1,18 @@
-# 591 台北租屋雲端推播
+# 591 Taipei Rent Scraper
 
-每 4 小時自動爬 591 台北租屋、依個人偏好過濾、把新物件透過 Telegram bot 推播。
-可在 Telegram 內直接設定篩選條件。
+Scrapes 591 (Taipei rentals) every 4 hours, filters listings by personal
+preferences, and pushes new matches via a Telegram bot. Filters can be
+configured directly from within Telegram.
 
-## 架構
+[繁體中文 README](docs/README.zh-TW.md)
+
+## Architecture
 
 ```
 EventBridge Scheduler ─every 4h─▶ Scraper Lambda (container/Playwright)
                                        │
                                        ├─reads─▶ DynamoDB: rent_prefs
-                                       ├─writes─▶ DynamoDB: rent_seen (TTL 30d)
+                                       ├─writes─▶ DynamoDB: rent_seen (liveness-refreshed TTL)
                                        └─sends─▶ Telegram Bot API
                                                        ▲
                                                        │
@@ -18,108 +21,132 @@ Webhook Lambda (Function URL) ◀──/commands── Telegram Bot
        └─writes prefs─▶ DynamoDB: rent_prefs
 ```
 
-部署於 AWS Tokyo (`ap-northeast-1`)。預估月費 < $0.50 USD。
+Deployed on AWS Tokyo (`ap-northeast-1`). Estimated cost < $0.50 USD/month.
 
-## 本機跑
+## Run locally
 
 ```bash
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 python3 -m playwright install chromium
 
-# 抓 1 頁存 CSV
+# Scrape 1 page, save to CSV
 python3 scraper.py --max-pages 1
 
-# 帶 filter 抓
+# Scrape with a filter URL
 python3 scraper.py --url "https://rent.591.com.tw/list?region=1&section=3,5&rentprice=15000,30000" --max-pages 2
 ```
 
-## 雲端部署
+## Cloud deployment
 
-### 一次性準備
+### One-time setup
 
-1. **AWS CLI 設定好憑證**
+1. **AWS CLI credentials configured**
    ```bash
-   aws configure  # 用個人帳號的 access key
-   aws sts get-caller-identity  # 確認對的帳號
+   aws configure  # use your personal account's access key
+   aws sts get-caller-identity  # confirm the right account
    ```
 
-2. **Docker Desktop 已啟動**（build scraper image 用）
+2. **Docker Desktop running** (needed to build the scraper image)
 
-3. **Terraform >= 1.6 已安裝**
+3. **Terraform >= 1.6 installed**
 
-4. **建 Telegram Bot**
-   - Telegram 找 `@BotFather`
-   - `/newbot` → 取 bot name → 取得 token（後面用得到）
+4. **Create a Telegram Bot**
+   - Find `@BotFather` on Telegram
+   - `/newbot` → pick a name → get the token (you'll need it below)
 
-### 部署
+### Deploy
 
 ```bash
-# 1) build & push image、build webhook zip、跑 terraform apply
+# 1) build & push image, build webhook zip, run terraform apply
 ./scripts/deploy.sh
 
-# 2) 把 Telegram token 寫進 SSM Parameter Store
+# 2) write the Telegram token into SSM Parameter Store
 ./scripts/put_secrets.sh
-# 輸入剛才 @BotFather 給的 token
+# paste the token @BotFather gave you
 
-# 3) 對 Telegram setWebhook
+# 3) register the Telegram webhook
 ./scripts/set_webhook.sh
 ```
 
-完成後在 Telegram 跟你的 bot 送 `/start`，應該會收到歡迎訊息。
+Once done, send `/start` to your bot on Telegram — you should get a welcome message.
 
-## Telegram 指令
+## Telegram commands
 
-| 指令 | 行為 |
-|------|------|
-| `/start` | 顯示歡迎、可用指令、目前 filter |
-| `/filters` | 看目前篩選條件 |
-| `/set_price 15000 30000` | 設租金區間 |
-| `/set_district 中山 大安 信義` | 設行政區（不加「區」也可） |
-| `/set_kind 套房 整層` | 設房屋類型（整層／套房／分租／雅房） |
-| `/set_area 10 30` | 設坪數 |
-| `/set_pattern 1 2` | 設房數 |
-| `/clear` | 清除所有篩選 |
-| `/pause` ・ `/resume` | 暫停／恢復推播 |
-| `/run` | 立即觸發一次掃描（測試用） |
+| Command | Behavior |
+|---|---|
+| `/start` | Show welcome message, available commands, current filters |
+| `/filters` | View current filter settings |
+| `/set_price 15000 30000` | Set rent price range |
+| `/set_district 中山 大安 信義` | Set districts (the trailing 「區」 suffix is optional) |
+| `/set_kind 套房 整層` | Set listing type (整層／套房／分租／雅房) |
+| `/set_area 10 30` | Set floor area range (坪) |
+| `/set_pattern 1 2` | Set number of rooms |
+| `/clear` | Clear all filters |
+| `/pause` / `/resume` | Pause/resume notifications |
+| `/run` | Trigger a scan immediately (for testing) |
+| `/reset` | Wipe the dedup table so the next scan re-seeds silently |
+| `/list [page]` | Page through currently-live listings (5 per page), showing "last confirmed" time |
 
-## 變更篩選的 section ID（萬一 591 改了）
+The chat's reply keyboard also exposes shortcut buttons (filters / list /
+scan now / pause / resume / clear filters / reseed baseline) that map to
+the same slash commands.
+
+## Listing retention & freshness
+
+- `mark_seen()` refreshes a listing's `last_seen_at` and TTL every time it's
+  re-observed in a scan, so listings still live on 591 never expire.
+- Once a listing disappears from 591, it's auto-deleted via DynamoDB TTL
+  `LISTING_TTL_DAYS` (default 7) after its last sighting.
+- `/list` only shows listings confirmed present within `FRESH_WINDOW_DAYS`
+  (default 3), so it doesn't surface stale/already-rented entries.
+- Both windows are tunable via Terraform variables (`listing_ttl_days` /
+  `fresh_window_days`) without code changes.
+- Caveat: liveness refresh only happens for listings within the scanned
+  page range (`MAX_PAGES`), so a listing still live but outside that range
+  could expire early. Fine for narrow single-user filters; revisit if
+  filters broaden.
+
+## Changing the district `section` IDs (if 591 changes them)
 
 ```bash
-# 重新從 591 抓所有區的 section_id
+# re-scrape all district section_ids from 591
 python3 scripts/refresh_sections.py
-# 寫進 app/data/taipei_sections.json，commit、重新部署
+# writes app/data/taipei_sections.json — commit and redeploy
 ./scripts/deploy.sh
 ```
 
-## 修改排程頻率
+## Changing the scan schedule
 
-編輯 `infra/variables.tf` 內 `scraper_schedule_expression`，再跑：
+Edit `scraper_schedule_expression` in `infra/variables.tf`, then run:
 
 ```bash
 cd infra && terraform apply
 ```
 
-## 主要檔案位置
+## Key file locations
 
 ```
 app/
-├── core/scraper.py          # Playwright 爬蟲核心
+├── core/scraper.py          # Playwright scraper core
 ├── core/filters.py          # prefs → 591 URL
 ├── core/prefs.py            # DynamoDB rent_prefs CRUD
-├── core/seen.py             # DynamoDB rent_seen 去重
+├── core/seen.py             # DynamoDB rent_seen dedup + liveness refresh
 ├── core/telegram.py         # Telegram Bot API
-├── scraper_lambda.py        # 排程觸發入口
-└── webhook_lambda.py        # Telegram webhook 入口
+├── scraper_lambda.py        # Scheduled scan entry point
+└── webhook_lambda.py        # Telegram webhook entry point
 
 infra/                       # Terraform
-scripts/                     # 部署 / 維運腳本
-scraper.py                   # 本機 CLI 入口
+scripts/                     # Deploy / ops scripts
+scraper.py                   # Local CLI entry point
 Dockerfile                   # Scraper Lambda image
 ```
 
-## 注意
+## Notes
 
-- `infra/terraform.tfstate` 含 AWS 資源細節，**已 gitignore**，請另外備份。
-- 多裝置部署 / 多人共用時應改用 S3 backend，不適用 local state。
-- 591 anti-bot 偶爾會 419／429；目前策略是 graceful return 不重試（4 小時後再試）。
+- `infra/terraform.tfstate` contains AWS resource details, is
+  **gitignored**, and should be backed up separately.
+- For multi-device deployment or shared use, switch to an S3 backend —
+  local state doesn't support that.
+- 591's anti-bot occasionally returns 419/429; the current strategy is a
+  graceful return without retry (tries again in 4 hours).
