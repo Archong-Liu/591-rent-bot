@@ -13,7 +13,12 @@ Usage: python scripts/migrate_default_user.py
 
 from __future__ import annotations
 
-from app.core.prefs import DEFAULT_USER_ID, delete_prefs, get_prefs, update_prefs
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from app.core.prefs import DEFAULT_USER_ID, delete_prefs, get_prefs, update_prefs  # noqa: E402
 
 
 def main():
