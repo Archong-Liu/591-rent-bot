@@ -1,6 +1,6 @@
 # Scraper Lambda image — based on the official Playwright Python image (Chromium included)
-# Note: the v1.49.0 image tag must match the playwright==1.49.0 pin in requirements.txt
-FROM mcr.microsoft.com/playwright/python:v1.49.0-jammy
+# Note: the v1.61.0 image tag must match the playwright==1.61.0 pin in requirements.txt
+FROM mcr.microsoft.com/playwright/python:v1.61.0-jammy
 
 # AWS Lambda environment variables
 ENV LAMBDA_TASK_ROOT=/var/task \
