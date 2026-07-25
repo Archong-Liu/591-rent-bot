@@ -15,7 +15,6 @@ from typing import Callable
 
 import boto3
 
-from app._ssm import get_telegram_token
 from app.core import telegram
 from app.core.filters import (
     KIND_CODE_TO_NAME,
@@ -26,6 +25,7 @@ from app.core.filters import (
 )
 from app.core.prefs import clear_filters, get_prefs, update_prefs
 from app.core.seen import clear_seen, list_recent
+from app.ssm import get_telegram_token
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

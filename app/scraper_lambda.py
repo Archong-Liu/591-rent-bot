@@ -9,13 +9,13 @@ import logging
 import os
 import time
 
-from app._ssm import get_telegram_token
 from app.core import telegram
 from app.core.filters import build_url
 from app.core.models import Listing
 from app.core.prefs import get_prefs, update_prefs
 from app.core.scraper import scrape
 from app.core.seen import mark_seen
+from app.ssm import get_telegram_token
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
