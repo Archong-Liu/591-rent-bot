@@ -27,7 +27,7 @@ Deployed on AWS Tokyo (`ap-northeast-1`). Estimated cost < $0.50 USD/month.
 
 ```bash
 python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-cli.txt
 python3 -m playwright install chromium
 
 # Scrape 1 page, save to CSV

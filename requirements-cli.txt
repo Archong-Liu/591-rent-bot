@@ -1,0 +1,2 @@
+# Only needed for scrape_cli.py's CSV export; not used by either deployed Lambda.
+pandas>=2.0.0
