@@ -134,7 +134,6 @@ app/
 ├── core/seen.py             # DynamoDB rent_seen dedup + liveness refresh
 ├── core/telegram.py         # Telegram Bot API
 ├── core/models.py           # Shared `Listing` type
-├── _lazy.py                 # Lazy-singleton cache for boto3 clients/resources
 ├── scraper_lambda.py        # Scheduled scan entry point
 └── webhook_lambda.py        # Telegram webhook entry point
 

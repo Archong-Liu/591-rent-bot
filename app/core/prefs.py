@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
+import functools
 import os
 from decimal import Decimal
 from typing import Any
 
 import boto3
 
-from app._lazy import lazy
-
 DEFAULT_USER_ID = "default"
 TABLE_NAME = os.environ.get("PREFS_TABLE", "rent_prefs")
 
-_get_table = lazy(lambda: boto3.resource("dynamodb").Table(TABLE_NAME))
+
+@functools.cache
+def _get_table():
+    return boto3.resource("dynamodb").Table(TABLE_NAME)
 
 
 def _from_ddb(item: dict | None) -> dict:
