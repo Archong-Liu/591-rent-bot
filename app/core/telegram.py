@@ -64,7 +64,7 @@ BUTTON_TO_COMMAND = {
     "⏸ 暫停": "/pause",
     "▶️ 恢復": "/resume",
     "🗑 清除條件": "/clear",
-    "♻️ 重新建立基準": "/reset",
+    "♻️ 重新建立基準": "/reseed",
 }
 
 

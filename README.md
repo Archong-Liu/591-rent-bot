@@ -89,15 +89,15 @@ Once done, send `/start` to your bot on Telegram — you should get a welcome me
 |---|---|
 | `/start` | Show welcome message, available commands, current filters |
 | `/filters` | View current filter settings |
-| `/set_price 15000 30000` | Set rent price range |
-| `/set_district 中山 大安 信義` | Set districts (the trailing 「區」 suffix is optional) |
-| `/set_kind 套房 整層` | Set listing type (整層／套房／分租／雅房) |
-| `/set_area 10 30` | Set floor area range (坪) |
-| `/set_pattern 1 2` | Set number of rooms |
+| `/price 15000 30000` | Set rent price range |
+| `/district 中山 大安 信義` | Set districts (the trailing 「區」 suffix is optional) |
+| `/kind 套房 整層` | Set listing type (整層／套房／分租／雅房) |
+| `/area 10 30` | Set floor area range (坪) |
+| `/pattern 1 2` | Set number of rooms |
 | `/clear` | Clear all filters |
 | `/pause` / `/resume` | Pause/resume notifications |
-| `/run` | Trigger a scan immediately (for testing) |
-| `/reset` | Wipe your dedup history so your next scan re-seeds silently |
+| `/run` | Trigger a scan immediately (may take a few minutes) |
+| `/reseed` | Wipe your history so your next scan re-seeds silently |
 | `/list [page] [price\|price_desc]` | Page through currently-live listings (5 per page), showing "last confirmed" time. Default sort is most-recently-reconfirmed first; `price`/`price_desc` sort by rent (unparseable prices, e.g. "面議", always sort last). Page and sort can be given in either order, e.g. `/list price 2`. The summary message also carries an inline keyboard (prev/next page, switch sort) so paging doesn't require retyping the command |
 
 The chat's reply keyboard also exposes shortcut buttons (filters / list /

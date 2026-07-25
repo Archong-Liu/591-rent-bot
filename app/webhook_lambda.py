@@ -61,15 +61,15 @@ def cmd_start(args: list[str], chat_id: int) -> str:
         "每天中午自動掃描符合你篩選的新物件，並推到這裡。\n\n"
         "可用指令:\n"
         "/filters - 看目前條件\n"
-        "/set_price <min> <max> - 設租金區間\n"
-        "/set_district <區1> <區2> ... - 設行政區（不加「區」字也可）\n"
-        "/set_kind <整層|套房|分租|雅房>... - 設房屋類型\n"
-        "/set_area <min> <max> - 設坪數\n"
-        "/set_pattern <n>... - 設房數\n"
+        "/price <min> <max> - 設租金區間\n"
+        "/district <區1> <區2> ... - 設行政區（不加「區」字也可）\n"
+        "/kind <整層|套房|分租|雅房>... - 設房屋類型\n"
+        "/area <min> <max> - 設坪數\n"
+        "/pattern <n>... - 設房數\n"
         "/clear - 清除所有篩選\n"
         "/pause | /resume - 暫停/恢復通知\n"
         "/run - 立即觸發一次掃描（可能需要幾分鐘）\n"
-        "/reset - 清空記錄重新建立基準\n"
+        "/reseed - 清空記錄重新建立基準\n"
         "/list [page] [price|price_desc] - 翻頁看已抓到的物件（5 筆/頁），可依價格排序\n\n"
         f"{describe_prefs(prefs)}"
     )
@@ -79,9 +79,9 @@ def cmd_filters(args: list[str], chat_id: int) -> str:
     return describe_prefs(get_prefs(str(chat_id)))
 
 
-def cmd_set_price(args: list[str], chat_id: int) -> str:
+def cmd_price(args: list[str], chat_id: int) -> str:
     if len(args) != 2:
-        return "用法：/set_price <min> <max>，例如 /set_price 15000 30000"
+        return "用法：/price <min> <max>，例如 /price 15000 30000"
     try:
         pmin, pmax = int(args[0]), int(args[1])
     except ValueError:
@@ -90,9 +90,9 @@ def cmd_set_price(args: list[str], chat_id: int) -> str:
     return f"✅ 已設租金 {pmin} ~ {pmax} 元/月"
 
 
-def cmd_set_district(args: list[str], chat_id: int) -> str:
+def cmd_district(args: list[str], chat_id: int) -> str:
     if not args:
-        return "用法：/set_district 中山 大安 信義"
+        return "用法：/district 中山 大安 信義"
     ids: list[str] = []
     unknown: list[str] = []
     for name in args:
@@ -111,9 +111,9 @@ def cmd_set_district(args: list[str], chat_id: int) -> str:
     return msg
 
 
-def cmd_set_kind(args: list[str], chat_id: int) -> str:
+def cmd_kind(args: list[str], chat_id: int) -> str:
     if not args:
-        return "用法：/set_kind 套房 整層"
+        return "用法：/kind 套房 整層"
     codes: list[str] = []
     unknown: list[str] = []
     for name in args:
@@ -132,9 +132,9 @@ def cmd_set_kind(args: list[str], chat_id: int) -> str:
     return msg
 
 
-def cmd_set_area(args: list[str], chat_id: int) -> str:
+def cmd_area(args: list[str], chat_id: int) -> str:
     if len(args) != 2:
-        return "用法：/set_area <min> <max>，例如 /set_area 10 30"
+        return "用法：/area <min> <max>，例如 /area 10 30"
     try:
         amin, amax = int(args[0]), int(args[1])
     except ValueError:
@@ -143,13 +143,13 @@ def cmd_set_area(args: list[str], chat_id: int) -> str:
     return f"✅ 已設坪數 {amin} ~ {amax} 坪"
 
 
-def cmd_set_pattern(args: list[str], chat_id: int) -> str:
+def cmd_pattern(args: list[str], chat_id: int) -> str:
     if not args:
-        return "用法：/set_pattern 1 2"
+        return "用法：/pattern 1 2"
     try:
         patterns = [int(x) for x in args]
     except ValueError:
-        return "格局必須是整數，例如 /set_pattern 1 2"
+        return "格局必須是整數，例如 /pattern 1 2"
     update_prefs({"patterns": patterns, "chat_id": chat_id}, user_id=str(chat_id))
     return f"✅ 已設格局：{', '.join(f'{p}房' for p in patterns)}"
 
@@ -265,7 +265,7 @@ def handle_list_callback(chat_id: int, data: str, token: str) -> None:
     _send_list_page(str(chat_id), chat_id, page, sort_by, token)
 
 
-def cmd_reset(args: list[str], chat_id: int) -> str:
+def cmd_reseed(args: list[str], chat_id: int) -> str:
     user_id = str(chat_id)
     update_prefs({"chat_id": chat_id, "last_scan_at": None}, user_id=user_id)
     n = clear_seen(user_id)
@@ -279,16 +279,16 @@ COMMANDS: dict[str, Callable[[list[str], int], str | None]] = {
     "/start": cmd_start,
     "/help": cmd_start,
     "/filters": cmd_filters,
-    "/set_price": cmd_set_price,
-    "/set_district": cmd_set_district,
-    "/set_kind": cmd_set_kind,
-    "/set_area": cmd_set_area,
-    "/set_pattern": cmd_set_pattern,
+    "/price": cmd_price,
+    "/district": cmd_district,
+    "/kind": cmd_kind,
+    "/area": cmd_area,
+    "/pattern": cmd_pattern,
     "/clear": cmd_clear,
     "/pause": cmd_pause,
     "/resume": cmd_resume,
     "/run": cmd_run,
-    "/reset": cmd_reset,
+    "/reseed": cmd_reseed,
     "/list": cmd_list,
 }
 
