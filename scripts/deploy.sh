@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 全流程部署：build & push scraper image → build webhook zip → terraform apply
+# Full deploy pipeline: build & push scraper image -> build webhook zip -> terraform apply
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"

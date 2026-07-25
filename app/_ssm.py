@@ -1,4 +1,4 @@
-"""SSM Parameter Store 共用模組（含 module-level cache）。"""
+"""Shared SSM Parameter Store helper (with a module-level cache)."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ _cache: dict[str, str] = {}
 
 
 def get_parameter(name: str, with_decryption: bool = True) -> str:
-    """讀 SSM parameter（含跨 invocation cache，cold start 才會打 SSM）。"""
+    """Read an SSM parameter, cached across invocations so only a cold start hits SSM."""
     if name in _cache:
         return _cache[name]
 

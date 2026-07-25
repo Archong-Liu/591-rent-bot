@@ -1,7 +1,7 @@
-"""591 台北租屋本機 CLI。
+"""591 Taipei rental scraper — local CLI.
 
-雲端 Lambda 不會走這支；它只是本機測試 / 備援的入口。
-核心邏輯在 app/core/scraper.py。
+The cloud Lambda doesn't go through this; it's only the local
+testing/backup entry point. Core logic lives in app/core/scraper.py.
 """
 
 from __future__ import annotations
@@ -62,16 +62,16 @@ def send_email(csv_path: str, recipient: str, smtp_user: str, smtp_password: str
 
 
 def main():
-    parser = argparse.ArgumentParser(description="591 台北租屋爬蟲（本機 CLI）")
-    parser.add_argument("--url", type=str, default=f"{BASE_URL}/list?region=1", help="591 列表 URL")
+    parser = argparse.ArgumentParser(description="591 Taipei rental scraper (local CLI)")
+    parser.add_argument("--url", type=str, default=f"{BASE_URL}/list?region=1", help="591 listing URL")
     parser.add_argument("--max-pages", type=int, default=10)
-    parser.add_argument("--all", action="store_true", help="爬所有頁")
+    parser.add_argument("--all", action="store_true", help="scrape all pages")
     parser.add_argument("--output", type=str, default=None)
     parser.add_argument("--show-browser", action="store_true")
     parser.add_argument("--email", action="store_true")
     parser.add_argument("--smtp-user", type=str, default=None)
     parser.add_argument("--smtp-password", type=str, default=None)
-    parser.add_argument("--recipient", type=str, default=None, help="收件 email（--email 模式必填）")
+    parser.add_argument("--recipient", type=str, default=None, help="recipient email (required with --email)")
     args = parser.parse_args()
 
     max_pages = 9999 if args.all else args.max_pages

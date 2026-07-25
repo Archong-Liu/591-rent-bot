@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 互動輸入 Telegram bot token，寫進 SSM Parameter Store
+# Interactively prompts for the Telegram bot token and writes it to SSM Parameter Store
 set -euo pipefail
 
 AWS_REGION="${AWS_REGION:-ap-northeast-1}"

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# 對 Telegram setWebhook，把 webhook 指到我們的 Lambda Function URL
+# Registers our webhook URL with Telegram's setWebhook (API Gateway HTTP API, see infra/apigateway.tf)
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 AWS_REGION="${AWS_REGION:-ap-northeast-1}"
 
-# 取得 webhook URL（從 terraform output）
+# Read the webhook URL from terraform output
 WEBHOOK_URL=$(cd "$ROOT_DIR/infra" && terraform output -raw webhook_url)
 
-# 取得 token
+# Read the bot token
 TOKEN=$(aws ssm get-parameter \
   --name /rent-scraper/telegram_token \
   --with-decryption \

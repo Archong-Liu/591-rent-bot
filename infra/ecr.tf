@@ -12,14 +12,15 @@ resource "aws_ecr_repository" "scraper" {
 resource "aws_ecr_lifecycle_policy" "scraper" {
   repository = aws_ecr_repository.scraper.name
 
-  # 只清理「無 tag」的中間產物（BuildKit 推送會留下這些），
-  # 並保留最新 10 個有 tag 的正式 image。
-  # 不要用 tagStatus=any + imageCountMoreThan，那會把 live image 一起掃掉。
+  # Only clean up untagged intermediate images (left behind by BuildKit
+  # pushes), and keep the newest 10 tagged production images.
+  # Do NOT use tagStatus=any + imageCountMoreThan — that sweeps up the live
+  # image along with everything else.
   policy = jsonencode({
     rules = [
       {
         rulePriority = 1
-        description  = "清掉 1 天前的無 tag image（BuildKit 中間產物）"
+        description  = "Expire untagged images (BuildKit intermediates) older than 1 day"
         selection = {
           tagStatus   = "untagged"
           countType   = "sinceImagePushed"
@@ -32,7 +33,7 @@ resource "aws_ecr_lifecycle_policy" "scraper" {
       },
       {
         rulePriority = 2
-        description  = "只保留最新 1 個有 tag 的 image（live image）"
+        description  = "Keep only the newest 1 tagged image (the live image)"
         selection = {
           tagStatus     = "tagged"
           tagPrefixList = ["2"]

@@ -1,4 +1,4 @@
-"""Telegram Bot API 輕量客戶端。"""
+"""Lightweight Telegram Bot API client."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def send_message(
     return resp.json()
 
 
-# --- Reply keyboard 常用功能按鈕 ---
+# --- Reply keyboard: shortcut buttons for common actions ---
 
 QUICK_KEYBOARD = {
     "keyboard": [
@@ -48,7 +48,7 @@ QUICK_KEYBOARD = {
     "is_persistent": True,
 }
 
-# 按鈕文字 → 對應的 slash command
+# Button label -> the slash command it maps to.
 BUTTON_TO_COMMAND = {
     "📋 看條件": "/filters",
     "📑 看清單": "/list",
@@ -67,7 +67,7 @@ def set_webhook(token: str, url: str) -> dict:
 
 
 def format_digest(items: list[dict]) -> str:
-    """把多筆 listing 合成一則精簡 Markdown 訊息（每筆一行）。"""
+    """Combine several listings into one compact Markdown message (one line each)."""
 
     def esc(s: str) -> str:
         for ch in ("_", "*", "[", "]"):
@@ -89,10 +89,10 @@ def format_digest(items: list[dict]) -> str:
 
 
 def format_listing(item: dict) -> str:
-    """把 scraper 回來的物件格式化成 Telegram Markdown 訊息。"""
+    """Format a single scraped listing as a Telegram Markdown message."""
 
     def esc(s: str) -> str:
-        # Telegram Markdown v1 對 _ * [ ] 敏感；只轉這些
+        # Telegram Markdown v1 treats _ * [ ] as special; escape only those.
         for ch in ("_", "*", "[", "]"):
             s = s.replace(ch, f"\\{ch}")
         return s
@@ -115,7 +115,7 @@ def format_listing(item: dict) -> str:
 
 
 def _relative_time(epoch: int) -> str:
-    """epoch 秒 → 「剛剛 / X小時前 / X天前」。"""
+    """epoch seconds -> "just now" / "X hours ago" / "X days ago" (in zh-TW)."""
     if not epoch:
         return ""
     diff = int(time.time()) - int(epoch)
@@ -127,7 +127,8 @@ def _relative_time(epoch: int) -> str:
 
 
 def format_list_item(item: dict, index: int = 0) -> str:
-    """單一物件 plain-text 格式，URL 放最後一行讓 Telegram 自動產生預覽圖。"""
+    """Format one listing as plain text, with the URL on its own last line so
+    Telegram renders a link preview for it."""
     listing_id = item.get("listing_id") or item.get("id", "?")
     title = (item.get("title") or "(無詳細資料)")[:40]
     price = item.get("price", "?")
@@ -145,4 +146,3 @@ def format_list_item(item: dict, index: int = 0) -> str:
     head = "｜".join(p for p in parts if p)
     tail = f"\n🕒 最後確認 {seen_rel}" if seen_rel else ""
     return f"{prefix}{head}\n{title}{tail}\n{link}"
-

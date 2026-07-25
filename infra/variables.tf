@@ -1,35 +1,35 @@
 variable "aws_region" {
-  description = "AWS 部署區域"
+  description = "AWS deployment region"
   type        = string
   default     = "ap-northeast-1"
 }
 
 variable "scraper_image_tag" {
-  description = "Scraper Lambda 容器映像的 tag（由 deploy.sh 動態帶入，預設 latest 方便首次 plan）"
+  description = "Scraper Lambda container image tag (passed dynamically by deploy.sh; defaults to latest so the first plan works)"
   type        = string
   default     = "latest"
 }
 
 variable "scraper_schedule_expression" {
-  description = "EventBridge Scheduler 排程，預設每 4 小時"
+  description = "EventBridge Scheduler schedule; defaults to every 4 hours"
   type        = string
   default     = "rate(4 hours)"
 }
 
 variable "scraper_max_pages" {
-  description = "Scraper Lambda 每次最多爬幾頁（每頁 30 筆）"
+  description = "Max pages the Scraper Lambda fetches per run (30 listings/page)"
   type        = number
   default     = 5
 }
 
 variable "listing_ttl_days" {
-  description = "物件消失後幾天從 DB 刪除（持續在架者每次掃描刷新，不會被刪）"
+  description = "Days after a listing disappears before it's deleted from the table (listings still live get their TTL refreshed on every scan, so they're never deleted)"
   type        = number
   default     = 7
 }
 
 variable "fresh_window_days" {
-  description = "/list 只顯示最近幾天內仍確認在架的物件"
+  description = "/list only shows listings confirmed live within this many days"
   type        = number
   default     = 3
 }

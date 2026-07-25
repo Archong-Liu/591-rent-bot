@@ -1,4 +1,4 @@
-"""將使用者 prefs 轉成 591 列表頁 URL。"""
+"""Convert user preferences into a 591 listing-page URL."""
 
 from __future__ import annotations
 
@@ -10,7 +10,9 @@ from urllib.parse import urlencode
 LIST_URL = "https://rent.591.com.tw/list"
 TAIPEI_REGION_ID = "1"
 
-# 591 房屋類型代碼
+# 591 house-type codes, reverse-engineered from the site. Unlike district
+# section IDs (see taipei_sections.json / refresh_sections.py), there's no
+# refresh script for these — re-verify manually if 591 ever changes them.
 KIND_NAME_TO_CODE: dict[str, str] = {
     "整層": "1",
     "整層住家": "1",
@@ -36,7 +38,7 @@ SECTION_ID_TO_NAME = {v: k for k, v in SECTION_NAME_TO_ID.items()}
 
 
 def normalize_district(name: str) -> str | None:
-    """把使用者輸入正規化為 section_id；不認得回 None。"""
+    """Normalize user input into a section_id; returns None if unrecognized."""
     name = name.strip().rstrip("區")
     return SECTION_NAME_TO_ID.get(name)
 
@@ -46,10 +48,10 @@ def normalize_kind(name: str) -> str | None:
 
 
 def build_url(prefs: dict) -> str:
-    """根據 prefs dict 組 591 列表 URL。
+    """Build a 591 listing URL from a prefs dict.
 
-    支援的 prefs key：sections, kinds, price_min, price_max,
-    area_min, area_max, patterns
+    Supported prefs keys: sections, kinds, price_min, price_max,
+    area_min, area_max, patterns.
     """
     params: list[tuple[str, str]] = [("region", TAIPEI_REGION_ID)]
 
@@ -79,7 +81,7 @@ def build_url(prefs: dict) -> str:
 
 
 def describe_prefs(prefs: dict) -> str:
-    """把 prefs 轉成人類可讀字串，用於 Telegram /filters 回覆。"""
+    """Render prefs as a human-readable string, used for the Telegram /filters reply."""
     lines = ["📋 目前篩選條件"]
 
     sections = prefs.get("sections") or []
