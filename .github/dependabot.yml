@@ -1,0 +1,24 @@
+version: 2
+updates:
+  # Root requirements*.txt files (requirements.txt, requirements-webhook.txt,
+  # requirements-cli.txt) all live here; Dependabot's pip ecosystem picks up
+  # every requirements*.txt in the given directory.
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "terraform"
+    directory: "/infra"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Intentionally no "docker" ecosystem entry: the Dockerfile's base image tag
+  # (v1.49.0) is manually kept in sync with requirements.txt's playwright==1.49.0
+  # pin (see the comment in Dockerfile). An independent bot-driven bump of one
+  # without the other would silently break that invariant.
