@@ -68,12 +68,6 @@ BUTTON_TO_COMMAND = {
 }
 
 
-def set_webhook(token: str, url: str) -> dict:
-    resp = requests.post(_bot_url(token, "setWebhook"), json={"url": url}, timeout=10)
-    resp.raise_for_status()
-    return resp.json()
-
-
 def format_digest(items: list[Listing]) -> str:
     """Combine several listings into one compact Markdown message (one line each)."""
     lines = [f"🆕 *{len(items)} 筆新物件*", ""]
@@ -88,25 +82,6 @@ def format_digest(items: list[Listing]) -> str:
             f"{i}. {district}｜{house_type}｜{price}元｜{area}\n   {title}\n   {link}"
         )
     return "\n".join(lines)
-
-
-def format_listing(item: Listing) -> str:
-    """Format a single scraped listing as a Telegram Markdown message."""
-    title = _escape_markdown(item.get("title", "(無標題)"))
-    price = item.get("price", "?")
-    area = item.get("area", "")
-    floor = item.get("floor", "")
-    house_type = item.get("type", "")
-    district = item.get("district", "")
-    link = item.get("link", "")
-
-    parts = [
-        f"🏠 *{title}*",
-        f"💰 {price} 元/月  |  📐 {_escape_markdown(area)}  |  🏢 {_escape_markdown(floor)}",
-        f"🏘 {_escape_markdown(house_type)}  |  📍 {_escape_markdown(district)}",
-        f"🔗 {link}",
-    ]
-    return "\n".join(parts)
 
 
 def _relative_time(epoch: int) -> str:
@@ -125,8 +100,8 @@ def format_list_item(item: Listing, index: int = 0) -> str:
     """Format one listing as plain text, with the URL on its own last line so
     Telegram renders a link preview for it.
 
-    Sent with parse_mode=None, so unlike format_digest/format_listing this
-    intentionally does not run values through _escape_markdown.
+    Sent with parse_mode=None, so unlike format_digest this intentionally
+    does not run values through _escape_markdown.
     """
     listing_id = item.get("listing_id") or item.get("id", "?")
     title = (item.get("title") or "(無詳細資料)")[:40]

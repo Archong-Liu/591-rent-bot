@@ -10,6 +10,9 @@ from typing import Any
 import boto3
 
 DEFAULT_USER_ID = "default"
+# "rent_prefs" is only a local-dev fallback; the deployed table is actually
+# named "rent-scraper-prefs" (see infra/dynamodb.tf) and is always supplied
+# via the PREFS_TABLE env var in both Lambdas.
 TABLE_NAME = os.environ.get("PREFS_TABLE", "rent_prefs")
 
 

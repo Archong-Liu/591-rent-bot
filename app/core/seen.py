@@ -19,6 +19,11 @@ from botocore.exceptions import ClientError
 
 from app.core.models import Listing
 
+# "rent_seen" is only a local-dev fallback; the deployed table is actually
+# named "rent-scraper-seen" (see infra/dynamodb.tf) and is always supplied
+# via the SEEN_TABLE env var in both Lambdas. A missing env var here is
+# exactly what caused a past production AccessDenied bug (SEEN_TABLE wasn't
+# wired into the webhook Lambda, so it silently fell back to this name).
 TABLE_NAME = os.environ.get("SEEN_TABLE", "rent_seen")
 
 # Days after a listing *disappears* before it's deleted from the table
