@@ -23,17 +23,9 @@ Webhook Lambda (Function URL) ◀──/commands── Telegram Bot
 ```
 
 Deployed on AWS Tokyo (`ap-northeast-1`). Estimated cost < $0.50 USD/month.
-
-Users are processed sequentially in one Scraper Lambda invocation, and each
-distinct filter combination needs its own real (anti-bot-paced) Chromium
-scrape. That puts a practical ceiling of roughly 10-15 distinct filter
-setups per scan cycle (once a day) before the Lambda's 5-minute timeout —
-this is a scraping-time limit, not an AWS billing one. Users who happen to
-share identical filters currently still each trigger their own separate
-scrape; deduplicating scrapes by filter combination would raise this
-ceiling further (and reduce 591 anti-bot exposure) but isn't implemented
-yet. Scanning once a day (rather than more frequently) also keeps total
-requests to 591 low, which helps limit anti-bot exposure on its own.
+Design rationale and trade-offs (scan cadence, the multi-user scraping
+ceiling, retention tuning, packaging choices) live in
+[docs/DESIGN.md](docs/DESIGN.md), not here.
 
 ## Run locally
 
@@ -108,32 +100,19 @@ the same slash commands.
 
 - `mark_seen()` refreshes a listing's `last_seen_at` and TTL every time it's
   re-observed in a scan, so listings still live on 591 never expire.
-- Once a listing disappears from 591, it's auto-deleted via DynamoDB TTL
-  `LISTING_TTL_DAYS` (default 7) after its last sighting. This is a
-  real-world "assume it's rented/delisted after about a week of not
-  reappearing" judgment call, independent of scan frequency.
-- `/list` only shows listings confirmed present within `FRESH_WINDOW_DAYS`
-  (default 2) — this tolerates exactly one missed/failed scan (e.g. a 591
-  anti-bot 419) before a still-live listing would incorrectly drop out of
-  `/list`.
-- Both windows are tunable via Terraform variables (`listing_ttl_days` /
+- `LISTING_TTL_DAYS` (default 7): days after a listing disappears before
+  it's auto-deleted via DynamoDB TTL.
+- `FRESH_WINDOW_DAYS` (default 2): `/list` only shows listings confirmed
+  present within this many days.
+- Both are tunable via Terraform variables (`listing_ttl_days` /
   `fresh_window_days`) without code changes.
-- `NEW_ITEM_CAP` (40) caps how many listings get pushed before switching to
-  an overflow notice; kept generous since a once-a-day scan cadence lets
-  more candidate new listings accumulate between runs than a more frequent
-  cadence would.
-- Caveat: liveness refresh only happens for listings within the scanned
-  page range (`MAX_PAGES`, default 5 pages/30 listings each). A once-a-day
-  scan gives listings up to 24h to get pushed past that page range by newer
-  postings before the next scan catches them, which raises the chance of
-  missing a listing entirely for high-volume filters/districts. Fine for
-  narrow per-user filters; raising `MAX_PAGES` trades this off against more
-  anti-bot exposure and more per-user scraping time within the Lambda
-  timeout (see above), so treat it as a "watch and tune if you notice gaps"
-  knob rather than a default to bump preemptively.
+- `NEW_ITEM_CAP` (40): max listings pushed per scan before switching to an
+  overflow notice. `MAX_PAGES` (5): pages scraped per scan.
 - Dedup is scoped per user (`rent_seen`'s key is `(user_id, listing_id)`),
   so the same listing can independently be "new" to multiple users with
   different filters.
+
+See [docs/DESIGN.md](docs/DESIGN.md) for the reasoning behind these defaults.
 
 ## Changing the district `section` IDs (if 591 changes them)
 
@@ -175,16 +154,11 @@ Dockerfile                   # Scraper Lambda image
 
 ## Notes
 
-- If you deployed this before multi-user support existed, `rent_seen`'s key
-  schema changes (`listing_id` → `(user_id, listing_id)`), which forces
-  Terraform to destroy and recreate that table — wiping dedup history for
-  everyone. After redeploying, run `python3 scripts/migrate_default_user.py`
-  once to move the old single "default" row to its real `chat_id` and reset
-  `last_scan_at`, so the next scan silently re-seeds instead of blasting
-  every currently-live listing as "new".
 - `infra/terraform.tfstate` contains AWS resource details, is
   **gitignored**, and should be backed up separately.
 - For multi-device deployment or shared use, switch to an S3 backend —
   local state doesn't support that.
 - 591's anti-bot occasionally returns 419/429; the current strategy is a
   graceful return without retry (tries again on the next scheduled scan).
+- Upgrading from a pre-multi-user deployment? See the migration note in
+  [docs/DESIGN.md](docs/DESIGN.md).

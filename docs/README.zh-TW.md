@@ -21,16 +21,9 @@ Webhook Lambda (Function URL) ◀──/commands── Telegram Bot
        └─writes prefs─▶ DynamoDB: rent_prefs（只影響發送者所在的 chat_id）
 ```
 
-部署於 AWS Tokyo (`ap-northeast-1`)。預估月費 < $0.50 USD。
-
-使用者是在同一次 Scraper Lambda 呼叫內依序處理的，而每種不同的篩選組合
-都需要各自跑一次真正的（且有意放慢速度避開反爬的）Chromium 爬取。這讓
-每次掃描週期（每天一次）大概只能處理 10-15 種不同篩選組合，就會撞到
-Lambda 5 分鐘的 timeout——這是爬蟲耗時造成的上限，不是 AWS 帳單額度的
-問題。目前篩選條件完全相同的使用者仍會各自觸發一次獨立爬取；把「相同
-篩選只爬一次」的邏輯做出來可以再拉高這個上限（同時降低 591 反爬風險），
-但目前還沒做。掃描頻率設為每天一次（而非更頻繁）本身就能壓低對 591 的
-總請求量，對降低反爬風險也有實質幫助。
+部署於 AWS Tokyo (`ap-northeast-1`)。預估月費 < $0.50 USD。設計理由與
+取捨（掃描頻率、多使用者爬取上限、保留期限調整、封裝方式選擇）記錄在
+[DESIGN.md](DESIGN.md)（英文），不放在這裡。
 
 ## 本機跑
 
@@ -102,12 +95,13 @@ python3 scrape_cli.py --url "https://rent.591.com.tw/list?region=1&section=3,5&r
 ## 物件保留與時效性
 
 - `mark_seen()` 每次掃描到物件（不論新舊）都會刷新其 `last_seen_at` 與 TTL，持續在架的物件不會過期。
-- 物件從 591 下架後，會在 `LISTING_TTL_DAYS`（預設 7 天）後被 DynamoDB TTL 自動刪除。這是「大概一週沒再出現就當作已租掉/下架」的現實假設，跟掃描頻率無關。
-- `/list` 只顯示 `FRESH_WINDOW_DAYS`（預設 2 天）內仍確認在架的物件，避免看到已經租掉/下架的舊資料——2 天可以容忍剛好一次掃描失敗（例如 591 反爬回 419），還不會把仍在架的物件誤判為過期。
+- `LISTING_TTL_DAYS`（預設 7 天）：物件從 591 下架後，幾天後會被 DynamoDB TTL 自動刪除。
+- `FRESH_WINDOW_DAYS`（預設 2 天）：`/list` 只顯示這幾天內仍確認在架的物件。
 - 兩個天數都可透過 Terraform 變數（`listing_ttl_days` / `fresh_window_days`）調整，不需改 code。
-- `NEW_ITEM_CAP`（40）是推送前的筆數上限，超過會改顯示 overflow 通知；設得比較寬鬆，因為每天只掃一次，兩次掃描間可以累積的候選新物件量會比掃更頻繁時來得多。
-- 限制：存活刷新只發生在有掃描到的分頁（`MAX_PAGES`，預設 5 頁、每頁 30 筆）內。每天一次的掃描週期，讓物件有長達 24 小時可能被新物件擠出這個分頁範圍才被下次掃描發現，對物件量大的篩選條件/行政區，漏掉物件的機率會提高。窄範圍篩選目前沒問題；要調高 `MAX_PAGES` 得拿反爬風險和 Lambda timeout 內能處理的使用者數（見上）來換，所以先當作「發現有漏掉再調」的旋鈕，不建議預先調高。
+- `NEW_ITEM_CAP`（40）：推送前的筆數上限，超過會改顯示 overflow 通知。`MAX_PAGES`（5）：每次掃描抓幾頁。
 - 去重是依使用者區分的（`rent_seen` 的 key 是 `(user_id, listing_id)`），所以同一筆物件對篩選條件不同的多個使用者可以各自獨立判定為「新物件」。
+
+這些預設值背後的理由記錄在 [DESIGN.md](DESIGN.md)。
 
 ## 變更篩選的 section ID（萬一 591 改了）
 
@@ -149,12 +143,7 @@ Dockerfile                   # Scraper Lambda image
 
 ## 注意
 
-- 如果你在多使用者支援上線前就已經部署過，`rent_seen` 的 key schema 會改變
-  （`listing_id` → `(user_id, listing_id)`），這會逼 Terraform 把整張表
-  destroy 重建——等於清空所有人的去重紀錄。重新部署後，跑一次
-  `python3 scripts/migrate_default_user.py`，把舊的單一 "default" row
-  搬到它真正的 `chat_id`，並重置 `last_scan_at`，這樣下次掃描才會靜默
-  重新建立基準，而不是把目前所有在架物件都當成「新物件」轟炸出去。
 - `infra/terraform.tfstate` 含 AWS 資源細節，**已 gitignore**，請另外備份。
 - 多裝置部署 / 多人共用時應改用 S3 backend，不適用 local state。
 - 591 anti-bot 偶爾會 419／429；目前策略是 graceful return 不重試（等下次排定的掃描再試）。
+- 從多使用者支援上線前的版本升級？遷移步驟記錄在 [DESIGN.md](DESIGN.md)。
