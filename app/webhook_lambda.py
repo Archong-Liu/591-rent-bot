@@ -14,6 +14,7 @@ from typing import Callable
 
 import boto3
 
+from app._lazy import lazy
 from app._ssm import get_telegram_token
 from app.core import telegram
 from app.core.filters import (
@@ -30,14 +31,11 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 SCRAPER_FN_NAME = os.environ.get("SCRAPER_FN_NAME", "")
-_lambda = None
+_get_lambda_client = lazy(lambda: boto3.client("lambda"))
 
 
 def _invoke_scraper_async() -> None:
-    global _lambda
-    if _lambda is None:
-        _lambda = boto3.client("lambda")
-    _lambda.invoke(
+    _get_lambda_client().invoke(
         FunctionName=SCRAPER_FN_NAME,
         InvocationType="Event",
         Payload=json.dumps({"notify_when_empty": True}).encode(),

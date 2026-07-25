@@ -16,6 +16,9 @@ from typing import Any
 import boto3
 from botocore.exceptions import ClientError
 
+from app._lazy import lazy
+from app.core.models import Listing
+
 TABLE_NAME = os.environ.get("SEEN_TABLE", "rent_seen")
 
 # Days after a listing *disappears* before it's deleted from the table
@@ -24,14 +27,7 @@ LISTING_TTL_DAYS = int(os.environ.get("LISTING_TTL_DAYS", "7"))
 # /list only shows listings confirmed live within this many days.
 FRESH_WINDOW_DAYS = int(os.environ.get("FRESH_WINDOW_DAYS", "3"))
 
-_table = None
-
-
-def _get_table():
-    global _table
-    if _table is None:
-        _table = boto3.resource("dynamodb").Table(TABLE_NAME)
-    return _table
+_get_table = lazy(lambda: boto3.resource("dynamodb").Table(TABLE_NAME))
 
 
 def _serialize(value: Any) -> Any:
@@ -45,7 +41,7 @@ def _serialize(value: Any) -> Any:
     return value
 
 
-def mark_seen(item: dict, ttl_days: int = LISTING_TTL_DAYS) -> bool:
+def mark_seen(item: Listing, ttl_days: int = LISTING_TTL_DAYS) -> bool:
     """Return True and store the full item on first sighting; return False
     (without re-notifying) on subsequent sightings, but still refresh liveness.
 
@@ -94,9 +90,9 @@ def mark_seen(item: dict, ttl_days: int = LISTING_TTL_DAYS) -> bool:
         return False
 
 
-def _scan_all() -> list[dict]:
+def _scan_all() -> list[Listing]:
     table = _get_table()
-    items: list[dict] = []
+    items: list[Listing] = []
     kwargs: dict = {}
     while True:
         resp = table.scan(**kwargs)
@@ -106,7 +102,7 @@ def _scan_all() -> list[dict]:
         kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
 
 
-def _seen_ts(item: dict) -> int:
+def _seen_ts(item: Listing) -> int:
     """Return last_seen_at, falling back to first_seen_at for older records."""
     return int(item.get("last_seen_at") or item.get("first_seen_at") or 0)
 
@@ -115,7 +111,7 @@ def list_recent(
     offset: int = 0,
     limit: int = 5,
     fresh_within_days: int = FRESH_WINDOW_DAYS,
-) -> tuple[list[dict], int]:
+) -> tuple[list[Listing], int]:
     """Return (this page's items, total count matching the freshness filter).
 
     Only keeps listings confirmed live within the last fresh_within_days days,
