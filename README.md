@@ -7,20 +7,8 @@ the bot gets their own independent filters, dedup state, and notifications.
 
 [繁體中文 README](docs/README.zh-TW.md)
 
-## Architecture
+![591 Rent Bot architecture](docs/architecture.png)
 
-```
-EventBridge Scheduler ─daily at noon (Asia/Taipei)─▶ Scraper Lambda (container/Playwright)
-                                       │  loops over every registered user
-                                       ├─reads─▶ DynamoDB: rent_prefs (1 row/chat_id)
-                                       ├─writes─▶ DynamoDB: rent_seen ((user_id, listing_id) key, liveness-refreshed TTL)
-                                       └─sends─▶ Telegram Bot API (per user's own chat_id)
-                                                       ▲
-                                                       │
-Webhook Lambda (Function URL) ◀──/commands── Telegram Bot
-       │
-       └─writes prefs─▶ DynamoDB: rent_prefs (scoped to the sending chat_id)
-```
 
 Deployed on AWS Tokyo (`ap-northeast-1`). Estimated cost < $0.50 USD/month.
 Design rationale and trade-offs (scan cadence, the multi-user scraping
